@@ -47,31 +47,32 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   };
 
   return (
-    <div className={`fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none flex flex-col justify-between select-none z-50 transition-colors duration-200 ${
+    <div className={`fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none select-none z-50 transition-colors duration-200 ${
       darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
     }`}>
-      <div className="w-full max-w-sm mx-auto flex-1 px-4 pt-3 sm:pt-5 pb-3 sm:pb-5 flex flex-col justify-between overflow-hidden animate-scale-in">
+      {/* Centered Phone Column */}
+      <div className="w-full max-w-[360px] mx-auto px-4 pt-3 sm:pt-5 pb-6 flex flex-col animate-scale-in">
         
-        {/* Top Header: Back Button, Green User Circle, Title */}
-        <div className="flex items-center space-x-3 mb-4">
+        {/* Top Header: Circular Back Button, Green User Circle, Title */}
+        <div className="flex items-center space-x-3 mb-5">
           <button
             type="button"
             onClick={onBack}
-            className={`w-9 h-9 rounded-full border flex items-center justify-center shadow-2xs transition-colors cursor-pointer ${
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               darkMode
-                ? 'bg-[#182335] border-slate-700/60 text-slate-300 hover:bg-[#223044]'
-                : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                ? 'bg-[#182335] text-slate-300 hover:bg-[#223044] border border-slate-700/60'
+                : 'bg-slate-100 hover:bg-slate-200/80 text-slate-700 border border-slate-200/50'
             }`}
             title="Back to role selection"
           >
-            <ArrowLeft className="w-4 h-4 stroke-[2]" />
+            <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.2]" />
           </button>
 
-          <div className="flex items-center space-x-2">
-            <div className="w-7 h-7 rounded-full bg-[#00A843] flex items-center justify-center text-white flex-shrink-0 shadow-sm">
-              <User className="w-4 h-4 fill-white" />
+          <div className="flex items-center space-x-2.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#00A843] flex items-center justify-center text-white flex-shrink-0 shadow-xs">
+              <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-white" />
             </div>
-            <h1 className={`text-[17px] font-bold tracking-tight ${
+            <h1 className={`text-[17px] sm:text-[18px] font-bold tracking-tight ${
               darkMode ? 'text-white' : 'text-slate-900'
             }`}>
               Customer Account
@@ -93,13 +94,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           </div>
         )}
 
-        {/* Banner Message Card */}
-        <div className={`w-full rounded-2xl p-3.5 sm:p-4 shadow-2xs border text-center mb-3 sm:mb-4 transition-colors ${
+        {/* 1. Banner Message Card */}
+        <div className={`w-full rounded-2xl px-5 py-4 border text-center mb-4 shadow-2xs transition-colors ${
           darkMode 
             ? 'bg-[#182335] border-slate-700/60' 
             : 'bg-white border-slate-100/90'
         }`}>
-          <p className={`text-[12px] sm:text-[13px] font-normal leading-relaxed max-w-[280px] mx-auto ${
+          <p className={`text-[12.5px] sm:text-[13px] font-normal leading-relaxed max-w-[280px] mx-auto ${
             darkMode ? 'text-slate-300' : 'text-slate-500'
           }`}>
             {isSignUp 
@@ -108,17 +109,17 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           </p>
         </div>
 
-        {/* Segmented Control Tabs: Sign In / Create Account */}
-        <div className={`w-full p-1 rounded-2xl flex items-center mb-3 sm:mb-4 transition-colors ${
-          darkMode ? 'bg-[#182335] border border-slate-700/50' : 'bg-slate-100/90'
+        {/* 2. Segmented Control Tabs: Sign In / Create Account */}
+        <div className={`w-full p-1 rounded-2xl flex items-center mb-4 transition-colors ${
+          darkMode ? 'bg-[#182335] border border-slate-700/50' : 'bg-[#EBF3ED]/80'
         }`}>
           <button
             type="button"
             onClick={() => setIsSignUp(false)}
-            className={`flex-1 py-2 sm:py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
+            className={`flex-1 py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
               !isSignUp 
-                ? 'bg-[#00A843] text-white shadow-sm' 
-                : (darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800')
+                ? 'bg-[#00A843] text-white shadow-xs' 
+                : (darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
             }`}
           >
             Sign In
@@ -126,22 +127,22 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           <button
             type="button"
             onClick={() => setIsSignUp(true)}
-            className={`flex-1 py-2 sm:py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
+            className={`flex-1 py-2.5 rounded-xl font-semibold text-[13px] text-center transition-all cursor-pointer ${
               isSignUp 
-                ? 'bg-[#00A843] text-white shadow-sm' 
-                : (darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800')
+                ? 'bg-[#00A843] text-white shadow-xs font-bold' 
+                : (darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')
             }`}
           >
             Create Account
           </button>
         </div>
 
-        {/* Credentials Form Card */}
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-          <div className={`w-full rounded-3xl p-4 sm:p-5 border shadow-2xs space-y-3 sm:space-y-3.5 transition-colors ${
-            darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-100/90'
+        {/* 3. Form Card & Action Buttons */}
+        <form onSubmit={handleSubmit} className="w-full space-y-4">
+          <div className={`w-full rounded-2xl p-4 sm:p-5 border shadow-2xs space-y-4 transition-colors ${
+            darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-200/80'
           }`}>
-            {/* Full Name Field (Create Account only) */}
+            {/* Full Name (when Create Account is active) */}
             {isSignUp && (
               <div>
                 <label className={`block text-[13px] font-semibold mb-1.5 transition-colors ${
@@ -231,20 +232,22 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
             </div>
           </div>
 
-          {/* Action Button: Sign In / Create Account */}
+          {/* 4. Action Button: Sign In / Create Account */}
           <button
             type="submit"
-            className="w-full bg-[#00A843] hover:bg-[#00963c] active:scale-[0.99] text-white font-bold py-3.5 rounded-2xl shadow-md shadow-emerald-700/20 text-center text-[15px] transition-all cursor-pointer"
+            className="w-full bg-[#00A843] hover:bg-[#00963c] active:scale-[0.99] text-white font-bold py-3.5 rounded-2xl shadow-md shadow-emerald-700/20 text-center text-[15px] tracking-wide transition-all cursor-pointer"
           >
             {isSignUp ? 'Create Account' : 'Sign In'}
           </button>
 
-          {/* Bottom Switch Link */}
-          <div className="text-center pt-1">
+          {/* 5. Bottom Switch Link */}
+          <div className="text-center pt-2">
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-[13px] text-slate-500 hover:text-[#00A843] transition-colors cursor-pointer font-medium"
+              className={`text-[13px] font-medium transition-colors cursor-pointer ${
+                darkMode ? 'text-slate-400 hover:text-emerald-400' : 'text-slate-600 hover:text-[#00A843]'
+              }`}
             >
               {isSignUp 
                 ? 'Already have an account? Sign In →' 
