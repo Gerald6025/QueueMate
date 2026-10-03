@@ -47,14 +47,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   };
 
   return (
-    <div className={`w-full min-h-[100dvh] flex flex-col justify-between select-none transition-colors duration-200 ${
+    <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between select-none transition-colors duration-200 ${
       darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
     }`}>
-      {/* Scrollable Container */}
-      <div className="w-full max-w-sm mx-auto flex-1 px-4 pt-6 pb-6 overflow-y-auto animate-scale-in">
+      <div className="w-full max-w-sm mx-auto flex-1 px-4 pt-4 sm:pt-6 pb-4 sm:pb-6 flex flex-col justify-between overflow-hidden animate-scale-in">
         
         {/* Top Header: Back Button, Green User Circle, Title */}
-        <div className="flex items-center space-x-3 mb-5">
+        <div className="flex items-center space-x-3 mb-4">
           <button
             type="button"
             onClick={onBack}
@@ -82,7 +81,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
 
         {/* Feedback Toast */}
         {toastMessage && (
-          <div className="mb-4 animate-scale-in">
+          <div className="mb-3 animate-scale-in">
             <div className={`text-xs py-2 px-3.5 rounded-xl flex items-center space-x-2 font-medium border ${
               darkMode 
                 ? 'bg-emerald-950/80 border-emerald-700/60 text-emerald-200' 
@@ -95,12 +94,12 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
         )}
 
         {/* Banner Message Card */}
-        <div className={`w-full rounded-2xl p-4 sm:p-5 shadow-2xs border text-center mb-4 transition-colors ${
+        <div className={`w-full rounded-2xl p-3.5 sm:p-4 shadow-2xs border text-center mb-3 sm:mb-4 transition-colors ${
           darkMode 
             ? 'bg-[#182335] border-slate-700/60' 
             : 'bg-white border-slate-100/90'
         }`}>
-          <p className={`text-[12.5px] sm:text-[13px] font-normal leading-relaxed max-w-[280px] mx-auto ${
+          <p className={`text-[12px] sm:text-[13px] font-normal leading-relaxed max-w-[280px] mx-auto ${
             darkMode ? 'text-slate-300' : 'text-slate-500'
           }`}>
             {isSignUp 
@@ -110,13 +109,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
         </div>
 
         {/* Segmented Control Tabs: Sign In / Create Account */}
-        <div className={`w-full p-1 rounded-2xl flex items-center mb-4 transition-colors ${
+        <div className={`w-full p-1 rounded-2xl flex items-center mb-3 sm:mb-4 transition-colors ${
           darkMode ? 'bg-[#182335] border border-slate-700/50' : 'bg-slate-100/90'
         }`}>
           <button
             type="button"
             onClick={() => setIsSignUp(false)}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
+            className={`flex-1 py-2 sm:py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
               !isSignUp 
                 ? 'bg-[#00A843] text-white shadow-sm' 
                 : (darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800')
@@ -127,7 +126,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           <button
             type="button"
             onClick={() => setIsSignUp(true)}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
+            className={`flex-1 py-2 sm:py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
               isSignUp 
                 ? 'bg-[#00A843] text-white shadow-sm' 
                 : (darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800')
@@ -138,8 +137,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
         </div>
 
         {/* Credentials Form Card */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className={`w-full rounded-3xl p-4 sm:p-5 border shadow-2xs space-y-4 transition-colors ${
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+          <div className={`w-full rounded-3xl p-4 sm:p-5 border shadow-2xs space-y-3 sm:space-y-3.5 transition-colors ${
             darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-100/90'
           }`}>
             {/* Full Name Field (Create Account only) */}
