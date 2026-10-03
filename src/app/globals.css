@@ -48,3 +48,79 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* ==========================================================================
+   Smooth Circular Floating Animations (For Onboarding Badges)
+   ========================================================================== */
+
+@keyframes float-circle-1 {
+  0% { transform: translate(0px, -8px) rotate(0deg); }
+  12.5% { transform: translate(5.6px, -5.6px) rotate(0.8deg); }
+  25% { transform: translate(8px, 0px) rotate(1.2deg); }
+  37.5% { transform: translate(5.6px, 5.6px) rotate(0.6deg); }
+  50% { transform: translate(0px, 8px) rotate(0deg); }
+  62.5% { transform: translate(-5.6px, 5.6px) rotate(-0.6deg); }
+  75% { transform: translate(-8px, 0px) rotate(-1.2deg); }
+  87.5% { transform: translate(-5.6px, -5.6px) rotate(-0.8deg); }
+  100% { transform: translate(0px, -8px) rotate(0deg); }
+}
+
+@keyframes float-circle-2 {
+  0% { transform: translate(8px, 0px) rotate(0deg); }
+  12.5% { transform: translate(5.6px, 5.6px) rotate(-0.8deg); }
+  25% { transform: translate(0px, 8px) rotate(-1.2deg); }
+  37.5% { transform: translate(-5.6px, 5.6px) rotate(-0.6deg); }
+  50% { transform: translate(-8px, 0px) rotate(0deg); }
+  62.5% { transform: translate(-5.6px, -5.6px) rotate(0.6deg); }
+  75% { transform: translate(0px, -8px) rotate(1.2deg); }
+  87.5% { transform: translate(5.6px, -5.6px) rotate(0.8deg); }
+  100% { transform: translate(8px, 0px) rotate(0deg); }
+}
+
+@keyframes float-circle-3 {
+  0% { transform: translate(0px, 7px) rotate(0deg); }
+  12.5% { transform: translate(-5px, 5px) rotate(0.7deg); }
+  25% { transform: translate(-7px, 0px) rotate(1deg); }
+  37.5% { transform: translate(-5px, -5px) rotate(0.5deg); }
+  50% { transform: translate(0px, -7px) rotate(0deg); }
+  62.5% { transform: translate(5px, -5px) rotate(-0.5deg); }
+  75% { transform: translate(7px, 0px) rotate(-1deg); }
+  87.5% { transform: translate(5px, 5px) rotate(-0.7deg); }
+  100% { transform: translate(0px, 7px) rotate(0deg); }
+}
+
+@keyframes float-circle-4 {
+  0% { transform: translate(-8px, 0px) rotate(0deg); }
+  12.5% { transform: translate(-5.6px, -5.6px) rotate(-0.7deg); }
+  25% { transform: translate(0px, -8px) rotate(-1.1deg); }
+  37.5% { transform: translate(5.6px, -5.6px) rotate(-0.5deg); }
+  50% { transform: translate(8px, 0px) rotate(0deg); }
+  62.5% { transform: translate(5.6px, 5.6px) rotate(0.5deg); }
+  75% { transform: translate(0px, 8px) rotate(1.1deg); }
+  87.5% { transform: translate(-5.6px, 5.6px) rotate(0.7deg); }
+  100% { transform: translate(-8px, 0px) rotate(0deg); }
+}
+
+.animate-float-circle-1 {
+  animation: float-circle-1 5.4s linear infinite;
+  will-change: transform;
+}
+
+.animate-float-circle-2 {
+  animation: float-circle-2 6.2s linear infinite;
+  will-change: transform;
+}
+
+.animate-float-circle-3 {
+  animation: float-circle-3 5.8s linear infinite;
+  will-change: transform;
+}
+
+.animate-float-circle-4 {
+  animation: float-circle-4 6.6s linear infinite;
+  will-change: transform;
+}
+
+
+
+

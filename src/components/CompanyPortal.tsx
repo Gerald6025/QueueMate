@@ -28,7 +28,7 @@ export const CompanyPortal: React.FC<CompanyPortalProps> = ({
   onBack,
   onLoginSuccess 
 }) => {
-  const { darkMode, resetQueues } = useQueue();
+  const { darkMode, resetQueues, registerBusiness, businesses } = useQueue();
   const [activeTab, setActiveTab] = useState<'signin' | 'register'>('signin');
   
   // Signed In state & company info
@@ -69,16 +69,15 @@ export const CompanyPortal: React.FC<CompanyPortalProps> = ({
 
     setTimeout(() => {
       setIsSigningIn(false);
-      resetQueues();
-      const isCityBank = signInEmail.toLowerCase().includes('citybank') || signInEmail.includes('admin');
-      const compName = isCityBank ? 'City Bank' : (signInEmail.split('@')[0] || 'City Bank');
-      const compInd = isCityBank ? 'Banking' : 'Services';
+      const matched = businesses.find((b) => b.email?.toLowerCase() === signInEmail.toLowerCase());
+      const compName = matched ? matched.name : (signInEmail.toLowerCase().includes('clinic') ? 'Health Plus Clinic' : 'City Bank');
+      const compInd = matched ? matched.industry : 'Banking';
       setCurrentCompany({
         name: compName,
         industry: compInd,
-        workingHours: '08:00 – 17:00',
-        queueWindow: '08:00 – 16:30',
-        dailyCapacity: '100',
+        workingHours: matched ? matched.workingHours : '08:00 – 17:00',
+        queueWindow: matched ? matched.queueWindow : '08:00 – 16:30',
+        dailyCapacity: matched ? matched.dailyCapacity : '100',
       });
       setIsSignedIn(true);
       setToastMessage(null);
@@ -88,30 +87,47 @@ export const CompanyPortal: React.FC<CompanyPortalProps> = ({
     }, 400);
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regCompanyName || !regEmail || !regPassword) return;
 
     setIsRegistering(true);
-    setTimeout(() => {
-      setIsRegistering(false);
-      resetQueues();
-      const formatTime = (t: string) => t.replace(' AM', '').replace(' PM', '').trim();
-      const compName = regCompanyName;
-      const compInd = regIndustry || 'Banking';
-      setCurrentCompany({
-        name: compName,
-        industry: compInd,
-        workingHours: `${formatTime(opensAt)} – ${formatTime(closesAt)}`,
-        queueWindow: `${formatTime(queueOpens)} – ${formatTime(queueCloses)}`,
-        dailyCapacity: dailyCapacity || '100',
-      });
-      setIsSignedIn(true);
-      setToastMessage(null);
-      if (onLoginSuccess) {
-        onLoginSuccess(compName);
-      }
-    }, 500);
+    const formatTime = (t: string) => t.replace(' AM', '').replace(' PM', '').trim();
+    const compName = regCompanyName;
+    const compInd = regIndustry || 'Banking';
+    const workingHours = `${formatTime(opensAt)} – ${formatTime(closesAt)}`;
+    const queueWindow = `${formatTime(queueOpens)} – ${formatTime(queueCloses)}`;
+
+    await registerBusiness({
+      name: compName,
+      industry: compInd,
+      description: regDescription || `Full-service ${compInd} operations & queue management.`,
+      email: regEmail,
+      workingHours,
+      queueWindow,
+      opensAt,
+      closesAt,
+      queueOpens,
+      queueCloses,
+      dailyCapacity: dailyCapacity || '100',
+      status: 'Open',
+      icon: compInd === 'Healthcare' ? 'clinic' : compInd === 'Retail' ? 'techmart' : 'bank',
+    });
+
+    setCurrentCompany({
+      name: compName,
+      industry: compInd,
+      workingHours,
+      queueWindow,
+      dailyCapacity: dailyCapacity || '100',
+    });
+
+    setIsRegistering(false);
+    setIsSignedIn(true);
+    setToastMessage(null);
+    if (onLoginSuccess) {
+      onLoginSuccess(compName);
+    }
   };
 
   const fillDemo = () => {

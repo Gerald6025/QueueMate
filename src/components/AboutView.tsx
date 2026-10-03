@@ -59,7 +59,7 @@ export const AboutView: React.FC = () => {
           <h1 className={`text-[23px] sm:text-[25px] font-bold tracking-tight mb-1 transition-colors duration-200 ${
             darkMode ? 'text-white' : 'text-slate-900'
           }`}>
-            Queue Manager
+            QueueMate
           </h1>
 
           {/* Subtitle */}

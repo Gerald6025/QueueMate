@@ -19,12 +19,14 @@ import {
   Calendar,
   Layers,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  QrCode
 } from 'lucide-react';
 import { useQueue } from '@/context/QueueContext';
 import { SettingsView } from './SettingsView';
 import { ProfileView } from './ProfileView';
 import { AboutView } from './AboutView';
+import { QRScannerModal } from './QRScannerModal';
 
 interface CompanyDashboardViewProps {
   companyName?: string;
@@ -48,11 +50,17 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   const { 
     tickets, 
     counters, 
+    businesses,
+    staffMembers,
+    addStaffMember,
+    deleteStaffMember,
     darkMode, 
     callNextTicket, 
     completeTicket, 
     recallTicket 
   } = useQueue();
+
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   // Top navigation sub-tabs: Overview, Queue, Staff, Settings
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'queue' | 'staff' | 'settings'>('overview');
@@ -60,15 +68,6 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   // Bottom navigation tabs: Home, Profile, Settings, About
   const [activeNavTab, setActiveNavTab] = useState<'home' | 'profile' | 'settings' | 'about'>('home');
 
-  // Staff members state (defaults to empty matching screenshot)
-  interface StaffMember {
-    id: string;
-    name: string;
-    email: string;
-    counterName: string;
-    active: boolean;
-  }
-  const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
@@ -85,11 +84,22 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   const [compDailyCapacity, setCompDailyCapacity] = useState(dailyCapacity);
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
 
-  // Compute live queue statistics
-  const waitingTickets = tickets.filter(t => t.status === 'waiting');
-  const servingTickets = tickets.filter(t => t.status === 'serving');
-  const doneTodayTickets = tickets.filter(t => t.status === 'completed');
-  const activeStaffCount = staffList.filter(s => s.active).length;
+  const currentBiz = businesses.find((b) => b.name.toLowerCase() === compName.toLowerCase() || b.name.toLowerCase() === companyName.toLowerCase()) || businesses[0] || null;
+
+  // Compute live queue statistics SCOPED strictly to THIS business
+  const waitingTickets = tickets.filter(
+    (t) => t.status === 'waiting' && (!currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name)
+  );
+  const servingTickets = tickets.filter(
+    (t) => t.status === 'serving' && (!currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name)
+  );
+  const doneTodayTickets = tickets.filter(
+    (t) => t.status === 'completed' && (!currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name)
+  );
+  const currentBizStaff = staffMembers.filter(
+    (s) => !currentBiz || s.businessId === currentBiz.id || s.businessName === currentBiz.name
+  );
+  const activeStaffCount = currentBizStaff.filter((s) => s.active).length;
 
   return (
     <div className={`w-full min-h-screen flex flex-col justify-between select-none transition-colors duration-200 ${
@@ -152,19 +162,29 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                 </div>
               </div>
 
-              {/* Right: Sign out button */}
-              <button
-                onClick={onSignOut}
-                className={`flex items-center space-x-1.5 text-[13px] font-medium transition-colors cursor-pointer px-2 py-1 rounded-lg ${
-                  darkMode 
-                    ? 'text-slate-300 hover:text-red-400 hover:bg-red-500/10' 
-                    : 'text-slate-700 hover:text-red-600 hover:bg-red-50'
-                }`}
-                title="Sign out of company portal"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sign out</span>
-              </button>
+              {/* Right: Scan QR & Sign out button */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowQRScanner(true)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="Scan customer QR code"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>Scan QR</span>
+                </button>
+                <button
+                  onClick={onSignOut}
+                  className={`flex items-center space-x-1.5 text-[13px] font-medium transition-colors cursor-pointer px-2 py-1 rounded-lg ${
+                    darkMode 
+                      ? 'text-slate-300 hover:text-red-400 hover:bg-red-500/10' 
+                      : 'text-slate-700 hover:text-red-600 hover:bg-red-50'
+                  }`}
+                  title="Sign out of company portal"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign out</span>
+                </button>
+              </div>
             </div>
 
             {/* TOP SUB-TABS: Overview | Queue | Staff | Settings */}
@@ -397,7 +417,7 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                   <span className="text-[14px]">Add Staff Member</span>
                 </button>
 
-                {staffList.length === 0 ? (
+                {currentBizStaff.length === 0 ? (
                   /* Empty state matching user screenshot */
                   <div className="flex-1 flex flex-col items-center justify-center py-16 sm:py-20 text-center">
                     <Users className="w-16 h-16 text-slate-400/90 dark:text-slate-500 stroke-[1.5] mb-3.5" />
@@ -413,7 +433,7 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                 ) : (
                   /* Staff list if staff added */
                   <div className="space-y-2.5">
-                    {staffList.map((staff) => (
+                    {currentBizStaff.map((staff) => (
                       <div
                         key={staff.id}
                         className={`p-3.5 rounded-2xl border flex items-center justify-between transition-colors ${
@@ -434,7 +454,7 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                           </div>
                         </div>
                         <button
-                          onClick={() => setStaffList(prev => prev.filter(s => s.id !== staff.id))}
+                          onClick={() => deleteStaffMember(staff.id)}
                           className="text-xs text-red-500 hover:text-red-600 font-medium px-2 py-1 cursor-pointer"
                         >
                           Remove
@@ -772,19 +792,21 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newStaffName.trim()) return;
-                setStaffList((prev) => [
-                  ...prev,
-                  {
-                    id: `staff-${Date.now()}`,
-                    name: newStaffName,
-                    email: newStaffEmail,
+                if (currentBiz) {
+                  await addStaffMember({
+                    businessId: currentBiz.id,
+                    businessName: currentBiz.name,
+                    name: newStaffName.trim(),
+                    email: newStaffEmail.trim() || `${newStaffName.toLowerCase().replace(/\s+/g, '.')}@${currentBiz.id}.com`,
                     counterName: newStaffCounter,
+                    role: 'Counter Staff',
+                    staffPin: '1234',
                     active: true,
-                  },
-                ]);
+                  });
+                }
                 setNewStaffName('');
                 setNewStaffEmail('');
                 setShowAddStaffModal(false);
@@ -843,6 +865,14 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* QR Scanner Modal for verifying arriving customers */}
+      {showQRScanner && (
+        <QRScannerModal
+          business={currentBiz}
+          onClose={() => setShowQRScanner(false)}
+        />
       )}
     </div>
   );

@@ -22,9 +22,15 @@ import {
   Sparkles,
   Search,
   X,
-  AlertCircle
+  AlertCircle,
+  Download,
+  Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { Business } from '@/types/queue';
+import { checkQueueEligibility } from '@/utils/businessHours';
+import { TicketQRCode } from './TicketQRCode';
+import { downloadTicketQR } from '@/utils/ticketDownload';
 import { ProfileView } from './ProfileView';
 import { SettingsView } from './SettingsView';
 import { AboutView } from './AboutView';
@@ -145,6 +151,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
 }) => {
   const { 
     tickets,
+    businesses,
     issueTicket, 
     currentCustomerTicket, 
     cancelCustomerTicket, 
@@ -153,14 +160,20 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
     darkMode
   } = useQueue();
 
-  const [selectedCompany, setSelectedCompany] = useState<CompanyQueueInfo | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<Business | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [bottomTab, setBottomTab] = useState<'home' | 'profile' | 'settings' | 'about'>('home');
-  const [isClosed, setIsClosed] = useState<boolean>(true);
+  const [manualClosedOverride, setManualClosedOverride] = useState<boolean | null>(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloadingQR, setIsDownloadingQR] = useState(false);
+  const [qrDownloaded, setQrDownloaded] = useState(false);
+
+  // Strict operating hours & queue window check
+  const autoEligibility = selectedCompany ? checkQueueEligibility(selectedCompany) : { canQueue: true, windowInfo: '' };
+  const isClosed = manualClosedOverride !== null ? manualClosedOverride : !autoEligibility.canQueue;
 
   // Live queue count
   const waitingCount = tickets.filter((t) => t.status === 'waiting').length;
@@ -169,12 +182,12 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
 
   const handleJoinQueue = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit || isClosed) return;
+    if (!canSubmit || isClosed || !selectedCompany) return;
 
     setIsSubmitting(true);
 
     setTimeout(() => {
-      issueTicket('general', name.trim(), phone.trim() || undefined);
+      issueTicket('general', name.trim(), phone.trim() || undefined, selectedCompany.id, selectedCompany.name);
       setIsSubmitting(false);
 
       confetti({
@@ -190,7 +203,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
     window.print();
   };
 
-  const filteredCompanies = DEFAULT_COMPANIES.filter((c) => {
+  const filteredCompanies = businesses.filter((c) => {
     const q = searchTerm.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -218,6 +231,20 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
           {/* Header */}
           <div className="w-full max-w-sm mx-auto pt-7 px-4 pb-2">
             <div className="flex items-center space-x-3 mb-4">
+              {(onSwitchRole || onBackToWelcome) && (
+                <button
+                  onClick={onSwitchRole || onBackToWelcome}
+                  className={`w-9 h-9 rounded-full border flex items-center justify-center shadow-2xs transition-colors cursor-pointer flex-shrink-0 ${
+                    darkMode
+                      ? 'bg-[#182335] border-slate-700/60 text-slate-300 hover:bg-[#223044]'
+                      : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                  }`}
+                  title="Back to roles"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+
               {/* Logo: Green squircle with white "Q" */}
               <div className="w-8 h-8 rounded-lg bg-[#00A843] flex items-center justify-center shadow-xs flex-shrink-0">
                 <span className="text-white font-extrabold text-[17px] leading-none select-none font-sans">
@@ -271,7 +298,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                 key={company.id}
                 onClick={() => {
                   setSelectedCompany(company);
-                  setIsClosed(company.status === 'Closed');
+                  setManualClosedOverride(null);
                 }}
                 className={`w-full rounded-2xl p-4 shadow-sm border transition-all duration-200 flex items-center justify-between cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
                   darkMode
@@ -307,11 +334,11 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                   <div className="flex items-center space-x-3 text-[11.5px] text-slate-400 font-medium">
                     <span className="flex items-center space-x-1">
                       <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{company.waitingCount} waiting</span>
+                      <span>{tickets.filter((t) => t.businessId === company.id && t.status === 'waiting').length} waiting</span>
                     </span>
                     <span className="flex items-center space-x-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{company.hours}</span>
+                      <span>{company.workingHours}</span>
                     </span>
                   </div>
                 </div>
@@ -403,7 +430,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                   darkMode ? 'bg-[#101927] border-slate-700/50' : 'bg-[#F4FBF6] border-emerald-100/60'
                 }`}>
                   <div className="text-[20px] font-black text-[#00A843] leading-none mb-1">
-                    {selectedCompany.waitingCount}
+                    {tickets.filter((t) => t.businessId === selectedCompany.id && t.status === 'waiting').length}
                   </div>
                   <div className="text-[11px] text-slate-400 font-medium">Waiting</div>
                 </div>
@@ -413,7 +440,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                   darkMode ? 'bg-[#101927] border-slate-700/50 text-white' : 'bg-slate-50/80 border-slate-100 text-slate-900'
                 }`}>
                   <div className="text-[16px] font-bold leading-none mb-1">
-                    {selectedCompany.estWait}
+                    {Math.max(3, tickets.filter((t) => t.businessId === selectedCompany.id && t.status === 'waiting').length * 4)} min
                   </div>
                   <div className="text-[11px] text-slate-400 font-medium">Est. wait</div>
                 </div>
@@ -426,13 +453,14 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                     {isClosed ? 'Closed' : 'Open'}
                   </div>
                   <div className="text-[9.5px] text-slate-400 font-medium">
-                    {selectedCompany.hours}
+                    {selectedCompany.workingHours}
                   </div>
                 </div>
               </div>
             </div>
 
             {/* 2. Notice Banner */}
+            {/* 2. Queue Status Card */}
             <div
               className={`rounded-2xl p-3.5 flex items-start justify-between border transition-all ${
                 isClosed
@@ -452,23 +480,23 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                       isClosed ? 'text-[#D97706]' : 'text-emerald-700'
                     }`}
                   >
-                    {isClosed ? 'Queue is closed' : 'Queue is open'}
+                    {isClosed ? 'Queue is Closed' : 'Queue is Open'}
                   </div>
-                  <div className="text-[12px] text-slate-600 mt-0.5">
+                  <div className="text-[12px] text-slate-600 dark:text-slate-300 mt-0.5">
                     {isClosed
-                      ? `Queue closed at ${selectedCompany.closeTime}`
-                      : `Accepting customers until ${selectedCompany.closeTime}`}
+                      ? (autoEligibility.reason || `Queue closed for ${selectedCompany.name}`)
+                      : `Accepting customers • Queue Window: ${selectedCompany.queueWindow}`}
                   </div>
                 </div>
               </div>
 
-              {/* Status Toggle Button for demonstration / flexibility */}
+              {/* Status Toggle Button for testing / flexibility */}
               <button
-                onClick={() => setIsClosed(!isClosed)}
-                className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 border border-slate-200/80 text-slate-500 hover:text-slate-800 cursor-pointer transition-colors flex-shrink-0 ml-2"
+                onClick={() => setManualClosedOverride(isClosed ? false : true)}
+                className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:text-slate-800 cursor-pointer transition-colors flex-shrink-0 ml-2"
                 title="Toggle open or closed state"
               >
-                {isClosed ? 'Test Open' : 'Close'}
+                {isClosed ? 'Force Open' : 'Force Close'}
               </button>
             </div>
 
@@ -479,95 +507,162 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
               <h3 className={`text-[16px] font-bold transition-colors ${
                 darkMode ? 'text-white' : 'text-slate-900'
               }`}>
-                Your Details
+                {currentCustomerTicket && 
+                 currentCustomerTicket.status !== 'completed' && 
+                 (currentCustomerTicket.businessId === selectedCompany.id || currentCustomerTicket.businessName === selectedCompany.name)
+                  ? 'Your Queue Ticket & QR Code'
+                  : 'Your Details'}
               </h3>
 
-              <div>
-                <label className={`block text-xs font-semibold mb-1.5 transition-colors ${
-                  darkMode ? 'text-slate-300' : 'text-slate-700'
+              {/* Active Ticket & Scannable QR Code for THIS company */}
+              {currentCustomerTicket && 
+               currentCustomerTicket.status !== 'completed' && 
+               (currentCustomerTicket.businessId === selectedCompany.id || currentCustomerTicket.businessName === selectedCompany.name) ? (
+                <div className={`p-4 rounded-2xl text-center border animate-scale-in ${
+                  darkMode ? 'bg-emerald-950/40 border-emerald-800/80 text-white' : 'bg-emerald-50/80 border-emerald-200 text-slate-900'
                 }`}>
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  disabled={isClosed}
-                  className={`w-full px-3.5 py-3 rounded-xl border text-sm outline-none transition-all ${
-                    isClosed
-                      ? (darkMode ? 'bg-[#101927] border-slate-700 text-slate-500 placeholder-slate-600 cursor-not-allowed' : 'bg-slate-50/70 border-slate-200/80 text-slate-500 placeholder-slate-400 cursor-not-allowed')
-                      : (darkMode ? 'bg-[#101927] border-slate-700 text-white focus:border-[#00A843]' : 'bg-white border-slate-200 focus:border-[#00A843] focus:ring-2 focus:ring-emerald-500/15')
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className={`block text-xs font-semibold mb-1.5 transition-colors ${
-                  darkMode ? 'text-slate-300' : 'text-slate-700'
-                }`}>
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Enter your phone number"
-                  disabled={isClosed}
-                  className={`w-full px-3.5 py-3 rounded-xl border text-sm outline-none transition-all ${
-                    isClosed
-                      ? (darkMode ? 'bg-[#101927] border-slate-700 text-slate-500 placeholder-slate-600 cursor-not-allowed' : 'bg-slate-50/70 border-slate-200/80 text-slate-500 placeholder-slate-400 cursor-not-allowed')
-                      : (darkMode ? 'bg-[#101927] border-slate-700 text-white focus:border-[#00A843]' : 'bg-white border-slate-200 focus:border-[#00A843] focus:ring-2 focus:ring-emerald-500/15')
-                  }`}
-                />
-              </div>
-
-              {/* Action Button: Matches screenshot "Queue is Closed" with CheckCircle icon */}
-              {isClosed ? (
-                <button
-                  disabled
-                  className={`w-full py-3.5 rounded-xl font-medium text-sm flex items-center justify-center space-x-2 cursor-not-allowed border transition-colors ${
-                    darkMode ? 'bg-[#1e2a3c] border-slate-700 text-slate-500' : 'bg-slate-200/80 border-transparent text-slate-400'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4 text-slate-400" />
-                  <span>Queue is Closed</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleJoinQueue}
-                  disabled={!canSubmit || isSubmitting}
-                  className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide text-white transition-all shadow-md flex items-center justify-center space-x-2 ${
-                    canSubmit && !isSubmitting
-                      ? 'bg-[#00A843] hover:bg-[#00963c] shadow-emerald-700/20 active:scale-[0.98] cursor-pointer'
-                      : 'bg-slate-300 cursor-not-allowed'
-                  }`}
-                >
-                  <TicketIcon className="w-4 h-4" />
-                  <span>{isSubmitting ? 'Joining Queue...' : 'Join Queue'}</span>
-                </button>
-              )}
-
-              {/* If user already has an active ticket, show quick shortcut */}
-              {currentCustomerTicket && currentCustomerTicket.status !== 'completed' && (
-                <div className={`mt-3 p-3 rounded-xl text-left flex items-center justify-between border ${
-                  darkMode ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200' : 'bg-emerald-50 border-emerald-200'
-                }`}>
-                  <div>
-                    <span className={`text-xs font-bold ${darkMode ? 'text-emerald-300' : 'text-emerald-800'}`}>
-                      Active Ticket: {currentCustomerTicket.number}
+                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-emerald-500/20">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-500">
+                      Active Ticket
                     </span>
-                    <span className={`text-[11px] block ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
                       #{getQueuePosition(currentCustomerTicket)} in line (~{getEstimatedWaitMinutes(currentCustomerTicket)}m)
                     </span>
                   </div>
-                  <button
-                    onClick={() => cancelCustomerTicket(currentCustomerTicket.id)}
-                    className="text-[11px] text-rose-500 hover:underline font-semibold cursor-pointer"
-                  >
-                    Cancel
-                  </button>
+
+                  <div className="mb-2">
+                    <span className="text-3xl font-mono font-extrabold text-emerald-500 tracking-tight">
+                      {currentCustomerTicket.number}
+                    </span>
+                    <p className="text-xs text-slate-400 mt-0.5 font-medium">
+                      {currentCustomerTicket.customerName} • {currentCustomerTicket.categoryName}
+                    </p>
+                  </div>
+
+                  {/* Scannable QR Code */}
+                  <div className="my-3">
+                    <TicketQRCode ticket={currentCustomerTicket} size={160} showDetails={true} />
+                  </div>
+
+                  <div className="flex items-center space-x-2 mt-4 pt-3 border-t border-emerald-500/20">
+                    <button
+                      onClick={async () => {
+                        if (!currentCustomerTicket) return;
+                        setIsDownloadingQR(true);
+                        try {
+                          await downloadTicketQR(currentCustomerTicket, 'pass');
+                          setQrDownloaded(true);
+                          setTimeout(() => setQrDownloaded(false), 2500);
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          setIsDownloadingQR(false);
+                        }
+                      }}
+                      disabled={isDownloadingQR}
+                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm transition-all"
+                    >
+                      {qrDownloaded ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-white" />
+                          <span>Saved!</span>
+                        </>
+                      ) : isDownloadingQR ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Saving...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Save QR</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handlePrint}
+                      className="flex-1 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer hover:bg-slate-800"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print</span>
+                    </button>
+                    <button
+                      onClick={() => cancelCustomerTicket(currentCustomerTicket.id)}
+                      className="flex-1 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Cancel</span>
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div>
+                    <label className={`block text-xs font-semibold mb-1.5 transition-colors ${
+                      darkMode ? 'text-slate-300' : 'text-slate-700'
+                    }`}>
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your full name"
+                      disabled={isClosed}
+                      className={`w-full px-3.5 py-3 rounded-xl border text-sm outline-none transition-all ${
+                        isClosed
+                          ? (darkMode ? 'bg-[#101927] border-slate-700 text-slate-500 placeholder-slate-600 cursor-not-allowed' : 'bg-slate-50/70 border-slate-200/80 text-slate-500 placeholder-slate-400 cursor-not-allowed')
+                          : (darkMode ? 'bg-[#101927] border-slate-700 text-white focus:border-[#00A843]' : 'bg-white border-slate-200 focus:border-[#00A843] focus:ring-2 focus:ring-emerald-500/15')
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-semibold mb-1.5 transition-colors ${
+                      darkMode ? 'text-slate-300' : 'text-slate-700'
+                    }`}>
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Enter your phone number"
+                      disabled={isClosed}
+                      className={`w-full px-3.5 py-3 rounded-xl border text-sm outline-none transition-all ${
+                        isClosed
+                          ? (darkMode ? 'bg-[#101927] border-slate-700 text-slate-500 placeholder-slate-600 cursor-not-allowed' : 'bg-slate-50/70 border-slate-200/80 text-slate-500 placeholder-slate-400 cursor-not-allowed')
+                          : (darkMode ? 'bg-[#101927] border-slate-700 text-white focus:border-[#00A843]' : 'bg-white border-slate-200 focus:border-[#00A843] focus:ring-2 focus:ring-emerald-500/15')
+                      }`}
+                    />
+                  </div>
+
+                  {/* Action Button: Matches screenshot "Queue is Closed" with CheckCircle icon */}
+                  {isClosed ? (
+                    <button
+                      disabled
+                      className={`w-full py-3.5 rounded-xl font-medium text-sm flex items-center justify-center space-x-2 cursor-not-allowed border transition-colors ${
+                        darkMode ? 'bg-[#1e2a3c] border-slate-700 text-slate-500' : 'bg-slate-200/80 border-transparent text-slate-400'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-slate-400" />
+                      <span>Queue is Closed (No Queuing During Closed Hours)</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleJoinQueue}
+                      disabled={!canSubmit || isSubmitting}
+                      className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide text-white transition-all shadow-md flex items-center justify-center space-x-2 ${
+                        canSubmit && !isSubmitting
+                          ? 'bg-[#00A843] hover:bg-[#00963c] shadow-emerald-700/20 active:scale-[0.98] cursor-pointer'
+                          : 'bg-slate-300 cursor-not-allowed'
+                      }`}
+                    >
+                      <TicketIcon className="w-4 h-4" />
+                      <span>{isSubmitting ? 'Joining Queue...' : 'Join Queue & Get QR Ticket'}</span>
+                    </button>
+                  )}
+                </>
               )}
             </div>
 

@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "QueueFlow | Modern Queue Management System",
+  title: "QueueMate",
   description: "A modern solution to manage queues efficiently and keep everyone informed.",
 };
 

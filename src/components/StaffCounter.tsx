@@ -12,10 +12,13 @@ import {
   VolumeX, 
   RotateCcw,
   Sparkles,
-  Users
+  Users,
+  QrCode
 } from 'lucide-react';
+import { QRScannerModal } from './QRScannerModal';
 
 export const StaffCounter: React.FC = () => {
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const { 
     counters, 
     tickets, 
@@ -77,6 +80,16 @@ export const StaffCounter: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-3">
+          {/* Scan QR */}
+          <button
+            onClick={() => setShowQRScanner(true)}
+            className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Scan customer arrival QR code"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>Scan QR</span>
+          </button>
+
           {/* Sound Toggle */}
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
@@ -299,6 +312,12 @@ export const StaffCounter: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showQRScanner && (
+        <QRScannerModal
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
     </div>
   );
 };

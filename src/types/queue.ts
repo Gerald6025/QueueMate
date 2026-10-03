@@ -21,6 +21,11 @@ export interface Ticket {
   status: TicketStatus;
   counterId?: number;
   counterName?: string;
+  businessId?: string;
+  businessName?: string;
+  qrCodeData?: string;
+  isScanned?: boolean;
+  scannedAt?: number;
   createdAt: number;
   calledAt?: number;
   completedAt?: number;
@@ -34,6 +39,41 @@ export interface Counter {
   currentTicketId?: string;
   assignedCategories: ServiceId[];
   servedCount: number;
+  businessId?: string;
+}
+
+export interface Business {
+  id: string;
+  name: string;
+  industry: string;
+  description: string;
+  fullDescription?: string;
+  email?: string;
+  workingHours: string;
+  queueWindow: string;
+  opensAt?: string;
+  closesAt?: string;
+  queueOpens?: string;
+  queueCloses?: string;
+  dailyCapacity: string;
+  status: 'Open' | 'Closed';
+  waitingCount?: number;
+  estWait?: string;
+  icon?: string;
+  createdAt?: string;
+}
+
+export interface StaffMember {
+  id: string;
+  businessId: string;
+  businessName?: string;
+  name: string;
+  email: string;
+  role?: string;
+  counterName: string;
+  staffPin?: string;
+  active: boolean;
+  createdAt?: string;
 }
 
 export const SERVICE_CATEGORIES: ServiceCategory[] = [
