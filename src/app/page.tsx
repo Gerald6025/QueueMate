@@ -31,7 +31,7 @@ function MainQueueApp() {
   };
 
   return (
-    <div className="min-h-screen selection:bg-emerald-500 selection:text-white">
+    <div className={`w-full ${currentTab === 'onboarding' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'} selection:bg-emerald-500 selection:text-white`}>
       {/* 1. ONBOARDING & ROLE SELECTOR SCREENS */}
       {currentTab === 'onboarding' && (
         <OnboardingScreen 

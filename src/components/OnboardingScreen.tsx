@@ -341,7 +341,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     }
 
     return (
-      <div className={`w-full min-h-screen flex flex-col justify-between select-none relative transition-colors duration-200 ${
+      <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between select-none relative transition-colors duration-200 ${
         darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
       }`}>
         {activeNavTab === 'profile' ? (
@@ -355,7 +355,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
           <AboutView />
         ) : (
           /* Center Content: Logo, Title, Subtitle, 3 Role Cards */
-          <div className="w-full max-w-sm mx-auto flex-1 flex flex-col items-center justify-center px-4 py-8 animate-scale-in my-auto">
+          <div className="w-full max-w-sm mx-auto flex-1 flex flex-col items-center justify-center px-4 py-2 sm:py-4 animate-scale-in my-auto">
             {/* Logo: Green Squircle with bold white "Q" */}
             <div className="w-14 h-14 rounded-2xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3.5">
               <span className="text-white font-extrabold text-[30px] leading-none select-none font-sans">

@@ -47,10 +47,10 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   };
 
   return (
-    <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between select-none transition-colors duration-200 ${
+    <div className={`fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none flex flex-col justify-between select-none z-50 transition-colors duration-200 ${
       darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
     }`}>
-      <div className="w-full max-w-sm mx-auto flex-1 px-4 pt-4 sm:pt-6 pb-4 sm:pb-6 flex flex-col justify-between overflow-hidden animate-scale-in">
+      <div className="w-full max-w-sm mx-auto flex-1 px-4 pt-3 sm:pt-5 pb-3 sm:pb-5 flex flex-col justify-between overflow-hidden animate-scale-in">
         
         {/* Top Header: Back Button, Green User Circle, Title */}
         <div className="flex items-center space-x-3 mb-4">
