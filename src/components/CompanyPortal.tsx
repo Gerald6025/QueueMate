@@ -65,24 +65,34 @@ export const CompanyPortal: React.FC<CompanyPortalProps> = ({
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!signInEmail.trim() || !signInPassword.trim()) {
+      setToastMessage('Please enter both email and password.');
+      return;
+    }
+
     setIsSigningIn(true);
 
     setTimeout(() => {
       setIsSigningIn(false);
-      const matched = businesses.find((b) => b.email?.toLowerCase() === signInEmail.toLowerCase());
-      const compName = matched ? matched.name : (signInEmail.toLowerCase().includes('clinic') ? 'Health Plus Clinic' : 'City Bank');
-      const compInd = matched ? matched.industry : 'Banking';
+      const cleanEmail = signInEmail.trim().toLowerCase();
+      const matched = businesses.find((b) => b.email?.toLowerCase() === cleanEmail);
+
+      if (!matched) {
+        setToastMessage('No registered company found with this email. Please register first.');
+        return;
+      }
+
       setCurrentCompany({
-        name: compName,
-        industry: compInd,
-        workingHours: matched ? matched.workingHours : '08:00 – 17:00',
-        queueWindow: matched ? matched.queueWindow : '08:00 – 16:30',
-        dailyCapacity: matched ? matched.dailyCapacity : '100',
+        name: matched.name,
+        industry: matched.industry,
+        workingHours: matched.workingHours,
+        queueWindow: matched.queueWindow,
+        dailyCapacity: matched.dailyCapacity || '100',
       });
       setIsSignedIn(true);
       setToastMessage(null);
       if (onLoginSuccess) {
-        onLoginSuccess(compName);
+        onLoginSuccess(matched.name);
       }
     }, 400);
   };

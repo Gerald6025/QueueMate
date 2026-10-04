@@ -270,3 +270,166 @@ export async function deleteTicketFromDB(id: string): Promise<boolean> {
     return false;
   }
 }
+
+// ==========================================
+// CUSTOMER ACCOUNTS API (Supabase & Local)
+// ==========================================
+export interface CustomerAccount {
+  id: string;
+  name: string;
+  phone: string;
+  pin: string;
+  createdAt?: string;
+}
+
+const DEFAULT_DEMO_CUSTOMERS: CustomerAccount[] = [
+  {
+    id: 'cust-demo-1',
+    name: 'Gerry',
+    phone: '+1 234 567 8900',
+    pin: '1234',
+  },
+];
+
+function getLocalAccounts(): CustomerAccount[] {
+  if (typeof window === 'undefined') return DEFAULT_DEMO_CUSTOMERS;
+  try {
+    const raw = localStorage.getItem('queuemate_customer_accounts');
+    if (!raw) {
+      localStorage.setItem('queuemate_customer_accounts', JSON.stringify(DEFAULT_DEMO_CUSTOMERS));
+      return DEFAULT_DEMO_CUSTOMERS;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return DEFAULT_DEMO_CUSTOMERS;
+  }
+}
+
+function saveLocalAccount(account: CustomerAccount) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getLocalAccounts();
+    const cleanPhone = account.phone.replace(/[\s\-\(\)]/g, '');
+    const filtered = existing.filter((a) => a.phone.replace(/[\s\-\(\)]/g, '') !== cleanPhone);
+    filtered.push(account);
+    localStorage.setItem('queuemate_customer_accounts', JSON.stringify(filtered));
+  } catch {
+    // ignore
+  }
+}
+
+export async function getCustomerByPhone(phone: string): Promise<CustomerAccount | null> {
+  const cleanPhone = phone.trim();
+  const normalized = cleanPhone.replace(/[\s\-\(\)]/g, '');
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .or(`phone.eq.${cleanPhone},phone.eq.${normalized}`)
+        .maybeSingle();
+
+      if (data && !error) {
+        const customer: CustomerAccount = {
+          id: data.id,
+          name: data.name,
+          phone: data.phone,
+          pin: data.pin,
+          createdAt: data.created_at,
+        };
+        saveLocalAccount(customer);
+        return customer;
+      }
+    } catch (err) {
+      console.warn('Supabase query customer error:', err);
+    }
+  }
+
+  // Fallback to local accounts
+  const localList = getLocalAccounts();
+  const found = localList.find((a) => {
+    const aNorm = a.phone.replace(/[\s\-\(\)]/g, '');
+    return a.phone === cleanPhone || aNorm === normalized;
+  });
+
+  return found || null;
+}
+
+export async function createCustomerAccount(account: {
+  name: string;
+  phone: string;
+  pin: string;
+}): Promise<{ success: boolean; error?: string; customer?: CustomerAccount }> {
+  const cleanPhone = account.phone.trim();
+  const existing = await getCustomerByPhone(cleanPhone);
+  if (existing) {
+    return {
+      success: false,
+      error: 'An account with this phone number already exists. Please Sign In.',
+    };
+  }
+
+  const id = `cust-${Date.now()}`;
+  const newAccount: CustomerAccount = {
+    id,
+    name: account.name.trim(),
+    phone: cleanPhone,
+    pin: account.pin.trim(),
+    createdAt: new Date().toISOString(),
+  };
+
+  if (supabase) {
+    try {
+      const { error } = await supabase.from('customers').insert({
+        id: newAccount.id,
+        name: newAccount.name,
+        phone: newAccount.phone,
+        pin: newAccount.pin,
+      });
+
+      if (error) {
+        console.warn('Supabase customer insert error:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase customer insert exception:', err);
+    }
+  }
+
+  // Save locally
+  saveLocalAccount(newAccount);
+
+  return {
+    success: true,
+    customer: newAccount,
+  };
+}
+
+export async function verifyCustomerLogin(
+  phone: string,
+  pin: string
+): Promise<{ success: boolean; error?: string; customer?: CustomerAccount }> {
+  const cleanPhone = phone.trim();
+  const cleanPin = pin.trim();
+
+  const customer = await getCustomerByPhone(cleanPhone);
+  if (!customer) {
+    return {
+      success: false,
+      error: 'No account found with this phone number. Please create an account first.',
+    };
+  }
+
+  if (customer.pin !== cleanPin) {
+    return {
+      success: false,
+      error: 'Incorrect PIN. Please verify your PIN and try again.',
+    };
+  }
+
+  return {
+    success: true,
+    customer,
+  };
+}
+

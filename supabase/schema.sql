@@ -62,10 +62,20 @@ create table if not exists public.tickets (
   completed_at bigint
 );
 
+-- 4. Customer Accounts Table
+create table if not exists public.customers (
+  id text primary key,
+  name text not null,
+  phone text unique not null,
+  pin text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
 -- Enable Row Level Security (RLS)
 alter table public.businesses enable row level security;
 alter table public.staff enable row level security;
 alter table public.tickets enable row level security;
+alter table public.customers enable row level security;
 
 -- Public / Anonymous access policies (for client-side demo and kiosk operations)
 create policy "Allow public read access to businesses"
@@ -86,6 +96,12 @@ create policy "Allow public read access to tickets"
 create policy "Allow public insert/update/delete to tickets"
   on public.tickets for all using (true) with check (true);
 
+create policy "Allow public read access to customers"
+  on public.customers for select using (true);
+
+create policy "Allow public insert/update to customers"
+  on public.customers for all using (true) with check (true);
+
 -- Insert Default Demo Businesses
 insert into public.businesses (id, name, industry, description, full_description, email, working_hours, queue_window, opens_at, closes_at, queue_opens, queue_closes, daily_capacity, status, icon)
 values
@@ -102,3 +118,10 @@ values
   ('staff-3', 'health-plus', 'Health Plus Clinic', 'Dr. Sophia Patel', 'sophia@healthplus.com', 'Triage Nurse', 'Counter 1', '3456', true),
   ('staff-4', 'tech-mart', 'TechMart Support', 'David Kim', 'david@techmart.com', 'Tech Specialist', 'Counter 1', '4567', true)
 on conflict (id) do nothing;
+
+-- Insert Default Demo Customer Account
+insert into public.customers (id, name, phone, pin)
+values
+  ('cust-1', 'Gerry', '+1 234 567 8900', '1234')
+on conflict (phone) do nothing;
+

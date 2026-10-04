@@ -8,10 +8,11 @@ import {
   Lock, 
   Eye, 
   EyeOff, 
-  CheckCircle2,
+  CheckCircle2, 
   AlertCircle
 } from 'lucide-react';
 import { useQueue } from '@/context/QueueContext';
+import { createCustomerAccount, verifyCustomerLogin } from '@/lib/supabase';
 
 interface CustomerPortalProps {
   onBack: () => void;
@@ -30,53 +31,97 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   const [fullName, setFullName] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [showConfirmPin, setShowConfirmPin] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone.trim()) {
       showToast('Please enter your phone number', 'error');
       return;
     }
 
+    if (!pin.trim()) {
+      showToast('Please enter your 4-digit PIN', 'error');
+      return;
+    }
+
+    if (pin.length < 4) {
+      showToast('PIN must be at least 4 digits', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+
     if (isSignUp) {
-      if (!pin.trim()) {
-        showToast('Please create a PIN', 'error');
-        return;
-      }
-      if (pin.length < 4) {
-        showToast('PIN must be at least 4 digits', 'error');
+      if (!fullName.trim()) {
+        showToast('Please enter your full name', 'error');
+        setIsSubmitting(false);
         return;
       }
       if (pin !== confirmPin) {
         showToast('PINs do not match. Please verify.', 'error');
+        setIsSubmitting(false);
         return;
       }
-    }
 
-    const savedName = typeof window !== 'undefined' ? localStorage.getItem('queuemate_customer_name') : null;
-    const resolvedName = fullName.trim() || savedName || 'Gerry';
+      const res = await createCustomerAccount({
+        name: fullName.trim(),
+        phone: phone.trim(),
+        pin: pin.trim(),
+      });
 
-    if (isSignUp && fullName.trim()) {
+      if (!res.success) {
+        showToast(res.error || 'Failed to create account.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+
       try {
-        localStorage.setItem('queuemate_customer_name', fullName.trim());
+        localStorage.setItem('queuemate_customer_name', res.customer!.name);
+        localStorage.setItem('queuemate_customer_phone', res.customer!.phone);
       } catch {
         // ignore
       }
-    }
 
-    showToast(isSignUp ? 'Account created successfully!' : 'Signed in successfully!', 'success');
-    setTimeout(() => {
-      onLoginSuccess({
-        phone: phone.trim(),
-        name: resolvedName,
-      });
-    }, 400);
+      showToast('Account created successfully!', 'success');
+      setTimeout(() => {
+        setIsSubmitting(false);
+        onLoginSuccess({
+          phone: res.customer!.phone,
+          name: res.customer!.name,
+        });
+      }, 500);
+    } else {
+      // SIGN IN: User MUST have created an account first in Supabase / DB!
+      const res = await verifyCustomerLogin(phone.trim(), pin.trim());
+      if (!res.success) {
+        showToast(res.error || 'Sign in failed.', 'error');
+        setIsSubmitting(false);
+        return;
+      }
+
+      try {
+        localStorage.setItem('queuemate_customer_name', res.customer!.name);
+        localStorage.setItem('queuemate_customer_phone', res.customer!.phone);
+      } catch {
+        // ignore
+      }
+
+      showToast(`Welcome back, ${res.customer!.name}!`, 'success');
+      setTimeout(() => {
+        setIsSubmitting(false);
+        onLoginSuccess({
+          phone: res.customer!.phone,
+          name: res.customer!.name,
+        });
+      }, 500);
+    }
   };
 
   return (
@@ -336,9 +381,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           {/* 4. Action Button: Sign In / Create Account */}
           <button
             type="submit"
-            className="w-full bg-[#00A843] hover:bg-[#00963c] active:scale-[0.99] text-white font-bold py-3.5 rounded-2xl shadow-md shadow-emerald-700/20 text-center text-[15px] tracking-wide transition-all cursor-pointer"
+            disabled={isSubmitting}
+            className={`w-full ${isSubmitting ? 'bg-[#00A843]/70 cursor-not-allowed' : 'bg-[#00A843] hover:bg-[#00963c] active:scale-[0.99] cursor-pointer'} text-white font-bold py-3.5 rounded-2xl shadow-md shadow-emerald-700/20 text-center text-[15px] tracking-wide transition-all flex items-center justify-center space-x-2`}
           >
-            {isSignUp ? 'Create Account' : 'Sign In'}
+            {isSubmitting ? (
+              <span>{isSignUp ? 'Creating Account...' : 'Verifying Account...'}</span>
+            ) : (
+              <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
+            )}
           </button>
 
           {/* 5. Bottom Switch Link */}
