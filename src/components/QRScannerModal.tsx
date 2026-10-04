@@ -176,6 +176,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           </button>
         </div>
 
+        {/* City Bank 24/7 Testing Indicator */}
+        {business && (business.id === 'city-bank' || business.name.toLowerCase().includes('city bank')) && (
+          <div className="mb-3 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Testing Active: City Bank scans 24/7 regardless of the time</span>
+          </div>
+        )}
+
         {/* Operating Hours Check Notice */}
         {!eligibility.canScan && (
           <div className="mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-start space-x-2.5">

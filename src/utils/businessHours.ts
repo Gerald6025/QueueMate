@@ -35,6 +35,18 @@ export function checkQueueEligibility(business: Business): {
   reason?: string;
   windowInfo: string;
 } {
+  // Testing bypass for City Bank: allow queuing at any time regardless of operating hours
+  const isCityBank = 
+    business.id === 'city-bank' || 
+    business.name?.toLowerCase().includes('city bank');
+
+  if (isCityBank) {
+    return {
+      canQueue: true,
+      windowInfo: `${business.queueWindow || '08:00 – 16:30'} (Open 24/7 for testing)`,
+    };
+  }
+
   // 1. Check manual Open / Closed status
   if (business.status === 'Closed') {
     return {
@@ -104,6 +116,15 @@ export function checkScanEligibility(business?: Business | null): {
 } {
   if (!business) {
     return { canScan: true }; // General fallback
+  }
+
+  // Testing bypass for City Bank: allow scanning at any time regardless of hours
+  const isCityBank = 
+    business.id === 'city-bank' || 
+    business.name?.toLowerCase().includes('city bank');
+
+  if (isCityBank) {
+    return { canScan: true };
   }
 
   if (business.status === 'Closed') {
