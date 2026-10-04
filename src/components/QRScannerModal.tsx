@@ -11,14 +11,9 @@ import {
   X, 
   CheckCircle2, 
   AlertTriangle, 
-  Search, 
-  Sparkles, 
-  Clock, 
-  Building2, 
-  RefreshCw, 
+  RotateCw,
   Zap,
-  Image as ImageIcon,
-  ShieldAlert
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface QRScannerModalProps {
@@ -46,7 +41,8 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [isInsecureOrigin, setIsInsecureOrigin] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [currentCamIndex, setCurrentCamIndex] = useState(0);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -56,16 +52,27 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const eligibility = checkScanEligibility(business);
 
   useEffect(() => {
-    // Check if running on an insecure origin (HTTP on a non-localhost IP),
-    // which causes mobile browsers (Chrome / Samsung Internet) to block live camera streams
-    if (typeof window !== 'undefined') {
-      const isLocal = 
-        window.location.hostname === 'localhost' || 
-        window.location.hostname === '127.0.0.1';
-      const isHttps = window.location.protocol === 'https:';
-      if (!isLocal && !isHttps) {
-        setIsInsecureOrigin(true);
-      }
+    // Probe available cameras on mount if supported
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
+      Html5Qrcode.getCameras()
+        .then((cameras) => {
+          if (cameras && cameras.length > 0) {
+            setAvailableCameras(cameras);
+            // Default to back/rear camera if available
+            const backIdx = cameras.findIndex((c) =>
+              c.label.toLowerCase().includes('back') ||
+              c.label.toLowerCase().includes('rear') ||
+              c.label.toLowerCase().includes('environment') ||
+              c.label.toLowerCase().includes('main')
+            );
+            if (backIdx >= 0) {
+              setCurrentCamIndex(backIdx);
+            }
+          }
+        })
+        .catch(() => {
+          // ignore enumeration error
+        });
     }
 
     return () => {
@@ -89,61 +96,64 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     setIsStartingCamera(false);
   };
 
-  const startCamera = async () => {
+  const startCameraWithDevice = async (cameraConfig: any) => {
     setCameraError(null);
     setIsStartingCamera(true);
 
-    // Check mediaDevices support
-    if (
-      typeof navigator === 'undefined' ||
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia
-    ) {
-      setCameraError(
-        'Live camera streaming is blocked by your browser on HTTP. Please use "Take Photo of QR" below or enter the ticket number.'
-      );
-      setIsStartingCamera(false);
-      return;
+    // Ensure previous instance is cleared
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        await scannerRef.current.clear();
+      } catch {}
+      scannerRef.current = null;
     }
 
     try {
-      if (scannerRef.current) {
-        try {
-          if (scannerRef.current.isScanning) {
-            await scannerRef.current.stop();
-          }
-          await scannerRef.current.clear();
-        } catch {}
-      }
-
       const html5QrCode = new Html5Qrcode(readerElementId);
       scannerRef.current = html5QrCode;
 
       await html5QrCode.start(
-        { facingMode: 'environment' },
+        cameraConfig,
         {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
+          fps: 12,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+            const boxSize = Math.max(160, Math.floor(minDim * 0.72));
+            return { width: boxSize, height: boxSize };
+          },
+          aspectRatio: 1.0,
         },
         async (decodedText) => {
           handleProcessCode(decodedText);
           await stopCamera();
         },
-        () => {} // frame without QR, ignore
+        () => {} // scan frame error, ignore
       );
+
+      // Mobile Chrome / Samsung Internet fix: ensure video playsinline and muted
+      setTimeout(() => {
+        const video = document.querySelector<HTMLVideoElement>(`#${readerElementId} video`);
+        if (video) {
+          video.setAttribute('playsinline', 'true');
+          video.setAttribute('webkit-playsinline', 'true');
+          video.muted = true;
+          video.play().catch(() => {});
+        }
+      }, 200);
 
       setIsCameraActive(true);
     } catch (err: any) {
       console.warn('Camera start error:', err);
       let msg = err?.message || 'Unable to access camera.';
       if (err?.name === 'NotAllowedError' || msg.includes('Permission')) {
-        msg = 'Camera permission was denied. Please allow camera access in browser settings or use Photo / Manual entry.';
+        msg = 'Camera permission was denied. Please allow camera permissions in browser settings.';
       } else if (err?.name === 'NotFoundError') {
         msg = 'No camera found on this device.';
       } else if (err?.name === 'NotReadableError') {
-        msg = 'Camera is already in use by another application.';
-      } else if (isInsecureOrigin) {
-        msg = 'Camera access requires HTTPS or localhost. Use "Take Photo of QR" below to snap a picture.';
+        msg = 'Camera sensor busy. Tap "Switch Camera" or use "Take / Upload Photo".';
       }
       setCameraError(msg);
       setIsCameraActive(false);
@@ -152,7 +162,31 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     }
   };
 
-  // Mobile Native Camera / Image File Fallback (Works on ALL phones and over HTTP)
+  const startCamera = async () => {
+    // If cameras enumerated, use selected camera ID
+    if (availableCameras.length > 0 && availableCameras[currentCamIndex]) {
+      await startCameraWithDevice(availableCameras[currentCamIndex].id);
+    } else {
+      // Fallback to environment facing mode
+      await startCameraWithDevice({ facingMode: 'environment' });
+    }
+  };
+
+  const switchCamera = async () => {
+    if (availableCameras.length <= 1) {
+      // Toggle between facing modes
+      await stopCamera();
+      await startCameraWithDevice({ facingMode: isCameraActive ? 'user' : 'environment' });
+      return;
+    }
+
+    const nextIndex = (currentCamIndex + 1) % availableCameras.length;
+    setCurrentCamIndex(nextIndex);
+    await stopCamera();
+    await startCameraWithDevice(availableCameras[nextIndex].id);
+  };
+
+  // Mobile Native Camera / Image File Fallback (Works 100% on all devices)
   const handleFileCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -167,7 +201,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     } catch (err: any) {
       setScanStatus({
         type: 'error',
-        message: 'Could not detect a valid QR code in the image. Please try again or enter ticket number.',
+        message: 'No QR code recognized in the image. Please try taking another photo or enter ticket number below.',
       });
     } finally {
       if (fileInputRef.current) {
@@ -179,7 +213,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   const handleProcessCode = async (rawCode: string) => {
     if (!rawCode.trim()) return;
 
-    // Check operating hours allowed (open 24/7)
     if (!eligibility.canScan) {
       setScanStatus({
         type: 'error',
@@ -212,20 +245,19 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     handleProcessCode(manualCode);
   };
 
-  // Get waiting tickets for quick one-click test-scan
   const waitingTickets = tickets.filter(
     (t) => t.status === 'waiting' && (!business || !t.businessId || t.businessId === business.id)
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
       <div 
-        className={`w-full max-w-md rounded-3xl p-5 shadow-2xl border transition-all animate-scale-in max-h-[92vh] overflow-y-auto ${
+        className={`w-full max-w-md rounded-3xl p-5 shadow-2xl border transition-all animate-scale-in max-h-[94vh] overflow-y-auto ${
           darkMode ? 'bg-[#141E2E] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200/50 mb-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200/50 mb-3.5">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center flex-shrink-0">
               <QrCode className="w-5 h-5" />
@@ -250,16 +282,10 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           </button>
         </div>
 
-        {/* 24/7 Active Scanning Indicator */}
-        <div className="mb-3 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center space-x-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Scanner Active: Available 24/7 at any time</span>
-        </div>
-
         {/* Scan Status Feedback */}
         {scanStatus.type !== 'idle' && (
           <div 
-            className={`mb-4 p-4 rounded-2xl border flex items-start space-x-3 animate-scale-in ${
+            className={`mb-3.5 p-4 rounded-2xl border flex items-start space-x-3 animate-scale-in ${
               scanStatus.type === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
@@ -284,94 +310,116 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
           </div>
         )}
 
-        {/* Camera Scanner Viewport */}
+        {/* Camera Viewport Area */}
         <div className="mb-4">
-          {/* Isolated video container strictly managed by Html5Qrcode - ZERO React children */}
-          <div 
-            id={readerElementId} 
-            className={`w-full rounded-2xl overflow-hidden border ${
-              isCameraActive ? 'block min-h-[220px]' : 'hidden'
-            } ${darkMode ? 'bg-black border-slate-700' : 'bg-black border-slate-200'}`}
-          />
-
-          {/* Placeholder & Action Buttons when camera is inactive */}
-          {!isCameraActive && (
+          <div className="relative w-full rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-700 bg-black min-h-[250px] flex items-center justify-center">
+            
+            {/* The dedicated Html5Qrcode video canvas container - ALWAYS mounted with non-zero dimensions */}
             <div 
-              className={`w-full rounded-2xl border p-5 flex flex-col items-center justify-center text-center transition-colors ${
-                darkMode ? 'bg-slate-900/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-2.5">
-                <Camera className="w-6 h-6" />
+              id={readerElementId} 
+              className="w-full h-full min-h-[250px] flex items-center justify-center [&_video]:w-full [&_video]:h-full [&_video]:object-cover"
+            />
+
+            {/* When Camera is ACTIVE: Show animated scanning laser */}
+            {isCameraActive && (
+              <div className="absolute inset-0 pointer-events-none flex flex-col justify-center items-center">
+                <div className="w-[72%] h-[72%] border-2 border-emerald-500/80 rounded-2xl relative shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+                  {/* Laser line moving across */}
+                  <div className="absolute left-0 right-0 h-0.5 bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse top-1/2 -translate-y-1/2" />
+                </div>
               </div>
-              <p className="text-[13px] font-bold mb-1">
-                Scan Customer Arrival QR Code
-              </p>
-              <p className="text-xs text-slate-400 mb-4 max-w-xs">
-                Use your device camera or snap a quick photo of the ticket
-              </p>
+            )}
 
-              {/* Actions row: Live Camera + Native Photo */}
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  disabled={isStartingCamera}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>{isStartingCamera ? 'Opening Camera...' : 'Live Camera'}</span>
-                </button>
+            {/* When Camera is INACTIVE: Show Placeholder & Start Controls */}
+            {!isCameraActive && (
+              <div className={`absolute inset-0 p-5 flex flex-col items-center justify-center text-center ${
+                darkMode ? 'bg-[#182335]' : 'bg-slate-50'
+              }`}>
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-2.5">
+                  <Camera className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold mb-1">
+                  Ready to Scan Ticket
+                </h3>
+                <p className="text-xs text-slate-400 mb-4 max-w-xs">
+                  Tap Live Camera or use your phone camera to take a photo
+                </p>
 
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
-                    darkMode
-                      ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
-                      : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-2xs'
-                  }`}
-                >
-                  <ImageIcon className="w-4 h-4 text-emerald-500" />
-                  <span>Take / Upload Photo</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2.5 w-full max-w-xs">
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    disabled={isStartingCamera}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#00A843] hover:bg-[#00963c] text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>{isStartingCamera ? 'Starting...' : 'Open Camera'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                      darkMode
+                        ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                        : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-2xs'
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4 text-emerald-500" />
+                    <span>Take / Upload Photo</span>
+                  </button>
+                </div>
               </div>
+            )}
+          </div>
 
-              {/* Hidden file input with mobile camera capture */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileCapture}
-                className="hidden"
-              />
-            </div>
-          )}
-
-          {/* Active Camera Controls */}
+          {/* Active Camera Action Bar: Stop + Switch Camera */}
           {isCameraActive && (
-            <div className="mt-2.5 flex justify-center">
+            <div className="mt-2.5 flex items-center justify-between px-1">
+              <button
+                type="button"
+                onClick={switchCamera}
+                className={`py-1.5 px-3 rounded-xl border text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer ${
+                  darkMode
+                    ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                    : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
+                }`}
+                title="Switch to another camera sensor"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Switch Camera ({availableCameras.length > 0 ? `${currentCamIndex + 1}/${availableCameras.length}` : 'Flip'})</span>
+              </button>
+
               <button
                 type="button"
                 onClick={stopCamera}
-                className="px-4 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 text-xs font-semibold cursor-pointer transition-colors"
+                className="py-1.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 text-xs font-semibold transition-colors cursor-pointer"
               >
                 Stop Camera
               </button>
             </div>
           )}
 
-          {/* Camera Error / Notice */}
+          {/* Native Mobile Camera File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileCapture}
+            className="hidden"
+          />
+
+          {/* Camera Error Message */}
           {cameraError && (
-            <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-start space-x-2">
+            <div className="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-start space-x-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>{cameraError}</span>
             </div>
           )}
         </div>
 
-        {/* Manual Ticket Entry */}
+        {/* Manual Ticket Number Entry */}
         <form onSubmit={handleManualSubmit} className="space-y-2 mb-4">
           <label className="text-xs font-semibold text-slate-400 block">
             Manual Ticket Entry / Barcode Scanner:
