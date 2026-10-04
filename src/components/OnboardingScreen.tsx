@@ -9,18 +9,11 @@ import {
   Check,
   CheckCircle2,
   Users,
-  Home,
-  User,
-  Settings,
-  Info,
   X,
   Search,
   BarChart3,
   Shield
 } from 'lucide-react';
-import { ProfileView } from './ProfileView';
-import { SettingsView } from './SettingsView';
-import { AboutView } from './AboutView';
 import { CompanyPortal } from './CompanyPortal';
 import { StaffPortal } from './StaffPortal';
 import { CustomerPortal } from './CustomerPortal';
@@ -221,7 +214,6 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
 }) => {
   const { darkMode } = useQueue();
   const [currentStep, setCurrentStep] = useState(initialStep);
-  const [activeNavTab, setActiveNavTab] = useState<'home' | 'profile' | 'settings' | 'about'>('home');
   const [showCompanyPortal, setShowCompanyPortal] = useState(false);
   const [showStaffPortal, setShowStaffPortal] = useState(false);
   const [showCustomerPortal, setShowCustomerPortal] = useState(false);
@@ -229,7 +221,6 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
   useEffect(() => {
     if (initialStep !== undefined) {
       setCurrentStep(initialStep);
-      setActiveNavTab('home');
       setShowCompanyPortal(false);
       setShowStaffPortal(false);
       setShowCustomerPortal(false);
@@ -341,172 +332,106 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     }
 
     return (
-      <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between select-none relative transition-colors duration-200 ${
+      <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-y-auto flex flex-col justify-center items-center select-none relative transition-colors duration-200 p-4 sm:p-6 ${
         darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
       }`}>
-        {activeNavTab === 'profile' ? (
-          <ProfileView defaultRole="Customer" />
-        ) : activeNavTab === 'settings' ? (
-          <SettingsView onSwitchRole={() => {
-            setCurrentStep(4);
-            setActiveNavTab('home');
-          }} />
-        ) : activeNavTab === 'about' ? (
-          <AboutView />
-        ) : (
-          /* Center Content: Logo, Title, Subtitle, 3 Role Cards */
-          <div className="w-full max-w-sm mx-auto flex-1 flex flex-col items-center justify-center px-4 py-2 sm:py-4 animate-scale-in my-auto">
-            {/* Logo: Green Squircle with bold white "Q" */}
-            <div className="w-14 h-14 rounded-2xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3.5">
-              <span className="text-white font-extrabold text-[30px] leading-none select-none font-sans">
-                Q
-              </span>
-            </div>
-
-            {/* App Title */}
-            <h1 className={`text-[25px] sm:text-[27px] font-bold tracking-tight mb-1 text-center transition-colors ${
-              darkMode ? 'text-white' : 'text-slate-900'
-            }`}>
-              QueueMate
-            </h1>
-
-            {/* Subtitle */}
-            <p className={`text-[14px] font-normal mb-7 text-center transition-colors ${
-              darkMode ? 'text-slate-400' : 'text-slate-500'
-            }`}>
-              Choose your role to get started
-            </p>
-
-            {/* 3 Role Cards */}
-            <div className="w-full space-y-3.5">
-              {/* 1. I'm a Customer */}
-              <button
-                onClick={() => setShowCustomerPortal(true)}
-                className={`w-full rounded-2xl p-4 shadow-sm border transition-all duration-200 flex items-center space-x-3.5 text-left cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
-                  darkMode 
-                    ? 'bg-[#182335] border-slate-700/60 hover:border-emerald-500' 
-                    : 'bg-white border-slate-100 hover:border-emerald-300 hover:shadow-md'
-                }`}
-              >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
-                  darkMode ? 'bg-[#00A843]' : 'bg-[#D7F5DE]'
-                }`}>
-                  <CustomerIcon className="w-6 h-6" strokeColor={darkMode ? '#FFFFFF' : '#00A843'} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className={`text-[16px] font-bold leading-tight mb-0.5 ${
-                    darkMode ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    I&apos;m a Customer
-                  </h2>
-                  <p className={`text-[12.5px] font-normal leading-snug ${
-                    darkMode ? 'text-slate-400' : 'text-slate-500'
-                  }`}>
-                    Search companies and join their queue
-                  </p>
-                </div>
-              </button>
-
-              {/* 2. I'm a Company */}
-              <button
-                onClick={() => setShowCompanyPortal(true)}
-                className={`w-full rounded-2xl p-4 shadow-sm border transition-all duration-200 flex items-center space-x-3.5 text-left cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
-                  darkMode 
-                    ? 'bg-[#182335] border-slate-700/60 hover:border-slate-500' 
-                    : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-md'
-                }`}
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#151E2E] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform border border-slate-700/50">
-                  <CompanyIcon className="w-6 h-6" strokeColor="#FFFFFF" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className={`text-[16px] font-bold leading-tight mb-0.5 ${
-                    darkMode ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    I&apos;m a Company
-                  </h2>
-                  <p className={`text-[12.5px] font-normal leading-snug ${
-                    darkMode ? 'text-slate-400' : 'text-slate-500'
-                  }`}>
-                    Register or log in to manage your queue
-                  </p>
-                </div>
-              </button>
-
-              {/* 3. I'm Staff (Highlighted green card) */}
-              <button
-                onClick={() => setShowStaffPortal(true)}
-                className="w-full bg-[#00A843] rounded-2xl p-4 shadow-md shadow-emerald-700/20 hover:bg-[#00963c] transition-all duration-200 flex items-center space-x-3.5 text-left cursor-pointer group hover:scale-[1.01] active:scale-[0.99]"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#18BA57] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                  <StaffIcon className="w-6 h-6" strokeColor="#FFFFFF" />
-                </div>
-                <div className="flex-1 min-w-0 text-white">
-                  <h2 className="text-[16px] font-bold text-white leading-tight mb-0.5">
-                    I&apos;m Staff
-                  </h2>
-                  <p className="text-[12.5px] text-emerald-50 font-normal leading-snug">
-                    Log in to manage queues and serve customers
-                  </p>
-                </div>
-              </button>
-            </div>
+        {/* Center Content: Logo, Title, Subtitle, 3 Role Cards */}
+        <div className="w-full max-w-sm mx-auto flex flex-col items-center justify-center animate-scale-in my-auto">
+          {/* Logo: Green Squircle with bold white "Q" */}
+          <div className="w-14 h-14 rounded-2xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3.5">
+            <span className="text-white font-extrabold text-[30px] leading-none select-none font-sans">
+              Q
+            </span>
           </div>
-        )}
 
-        {/* Bottom Navigation Bar */}
-        <div className={`w-full py-2 px-6 flex items-center justify-around shadow-sm transition-colors duration-200 ${
-          darkMode 
-            ? 'bg-[#101927] border-t border-slate-800' 
-            : 'bg-white border-t border-slate-100/90'
-        }`}>
-          {/* Home */}
-          <button
-            onClick={() => setActiveNavTab('home')}
-            className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${activeNavTab === 'home'
-                ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-sm'
-                : (darkMode ? 'text-slate-400 hover:text-white py-1.5 px-3' : 'text-slate-400 hover:text-slate-600 py-1.5 px-3')
-              }`}
-          >
-            <Home className="w-4 h-4" />
-            <span className="text-[10px] font-semibold mt-0.5">Home</span>
-          </button>
+          {/* App Title */}
+          <h1 className={`text-[25px] sm:text-[27px] font-bold tracking-tight mb-1 text-center transition-colors ${
+            darkMode ? 'text-white' : 'text-slate-900'
+          }`}>
+            QueueMate
+          </h1>
 
-          {/* Profile */}
-          <button
-            onClick={() => setActiveNavTab('profile')}
-            className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${activeNavTab === 'profile'
-                ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-sm'
-                : (darkMode ? 'text-slate-400 hover:text-white py-1.5 px-3' : 'text-slate-400 hover:text-slate-600 py-1.5 px-3')
-              }`}
-          >
-            <User className="w-4 h-4" />
-            <span className="text-[10px] font-medium mt-0.5">Profile</span>
-          </button>
+          {/* Subtitle */}
+          <p className={`text-[14px] font-normal mb-7 text-center transition-colors ${
+            darkMode ? 'text-slate-400' : 'text-slate-500'
+          }`}>
+            Choose your role to get started
+          </p>
 
-          {/* Settings */}
-          <button
-            onClick={() => setActiveNavTab('settings')}
-            className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${activeNavTab === 'settings'
-                ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-sm'
-                : (darkMode ? 'text-slate-400 hover:text-white py-1.5 px-3' : 'text-slate-400 hover:text-slate-600 py-1.5 px-3')
+          {/* 3 Role Cards */}
+          <div className="w-full space-y-3.5">
+            {/* 1. I'm a Customer */}
+            <button
+              onClick={() => setShowCustomerPortal(true)}
+              className={`w-full rounded-2xl p-4 shadow-sm border transition-all duration-200 flex items-center space-x-3.5 text-left cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
+                darkMode 
+                  ? 'bg-[#182335] border-slate-700/60 hover:border-emerald-500' 
+                  : 'bg-white border-slate-100 hover:border-emerald-300 hover:shadow-md'
               }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span className="text-[10px] font-medium mt-0.5">Settings</span>
-          </button>
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
+                darkMode ? 'bg-[#00A843]' : 'bg-[#D7F5DE]'
+              }`}>
+                <CustomerIcon className="w-6 h-6" strokeColor={darkMode ? '#FFFFFF' : '#00A843'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className={`text-[16px] font-bold leading-tight mb-0.5 ${
+                  darkMode ? 'text-white' : 'text-slate-900'
+                }`}>
+                  I&apos;m a Customer
+                </h2>
+                <p className={`text-[12.5px] font-normal leading-snug ${
+                  darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  Search companies and join their queue
+                </p>
+              </div>
+            </button>
 
-          {/* About */}
-          <button
-            onClick={() => setActiveNavTab('about')}
-            className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${activeNavTab === 'about'
-                ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-sm'
-                : (darkMode ? 'text-slate-400 hover:text-white py-1.5 px-3' : 'text-slate-400 hover:text-slate-600 py-1.5 px-3')
+            {/* 2. I'm a Company */}
+            <button
+              onClick={() => setShowCompanyPortal(true)}
+              className={`w-full rounded-2xl p-4 shadow-sm border transition-all duration-200 flex items-center space-x-3.5 text-left cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
+                darkMode 
+                  ? 'bg-[#182335] border-slate-700/60 hover:border-slate-500' 
+                  : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-md'
               }`}
-          >
-            <Info className="w-4 h-4" />
-            <span className="text-[10px] font-medium mt-0.5">About</span>
-          </button>
+            >
+              <div className="w-12 h-12 rounded-2xl bg-[#151E2E] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform border border-slate-700/50">
+                <CompanyIcon className="w-6 h-6" strokeColor="#FFFFFF" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className={`text-[16px] font-bold leading-tight mb-0.5 ${
+                  darkMode ? 'text-white' : 'text-slate-900'
+                }`}>
+                  I&apos;m a Company
+                </h2>
+                <p className={`text-[12.5px] font-normal leading-snug ${
+                  darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  Register or log in to manage your queue
+                </p>
+              </div>
+            </button>
+
+            {/* 3. I'm Staff (Highlighted green card) */}
+            <button
+              onClick={() => setShowStaffPortal(true)}
+              className="w-full bg-[#00A843] rounded-2xl p-4 shadow-md shadow-emerald-700/20 hover:bg-[#00963c] transition-all duration-200 flex items-center space-x-3.5 text-left cursor-pointer group hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-[#18BA57] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                <StaffIcon className="w-6 h-6" strokeColor="#FFFFFF" />
+              </div>
+              <div className="flex-1 min-w-0 text-white">
+                <h2 className="text-[16px] font-bold text-white leading-tight mb-0.5">
+                  I&apos;m Staff
+                </h2>
+                <p className="text-[12.5px] text-emerald-50 font-normal leading-snug">
+                  Log in to manage queues and serve customers
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     );

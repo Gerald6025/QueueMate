@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueue } from '@/context/QueueContext';
 import { 
   Users, 
@@ -24,7 +24,10 @@ import {
   X,
   AlertCircle,
   Download,
-  Check
+  Check,
+  Bell,
+  Coffee,
+  Star
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Business } from '@/types/queue';
@@ -99,9 +102,9 @@ const DEFAULT_COMPANIES: CompanyQueueInfo[] = [
     fullDescription: 'Full-service banking for all your personal and business financial needs.',
     hours: '08:00–16:30',
     workingHours: '08:00 – 17:00',
-    queueWindow: '08:00 – 16:30',
+    queueWindow: '08:00–16:30',
     closeTime: '16:30',
-    status: 'Closed',
+    status: 'Open',
     waitingCount: 0,
     estWait: '5 min',
     icon: 'bank',
@@ -114,9 +117,9 @@ const DEFAULT_COMPANIES: CompanyQueueInfo[] = [
     fullDescription: 'Primary care, specialist consultations, and emergency health services.',
     hours: '07:30–15:30',
     workingHours: '07:00 – 16:00',
-    queueWindow: '07:30 – 15:30',
+    queueWindow: '07:30–15:30',
     closeTime: '15:30',
-    status: 'Closed',
+    status: 'Open',
     waitingCount: 0,
     estWait: '10 min',
     icon: 'clinic',
@@ -129,9 +132,9 @@ const DEFAULT_COMPANIES: CompanyQueueInfo[] = [
     fullDescription: 'Electronics, gadgets, and tech accessories customer support and sales.',
     hours: '09:00–17:30',
     workingHours: '08:30 – 18:00',
-    queueWindow: '09:00 – 17:30',
+    queueWindow: '09:00–17:30',
     closeTime: '17:30',
-    status: 'Closed',
+    status: 'Open',
     waitingCount: 0,
     estWait: '5 min',
     icon: 'techmart',
@@ -165,11 +168,38 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
   const [bottomTab, setBottomTab] = useState<'home' | 'profile' | 'settings' | 'about'>('home');
   const [manualClosedOverride, setManualClosedOverride] = useState<boolean | null>(null);
 
-  const [name, setName] = useState('');
+  const [customerName, setCustomerName] = useState('Gerry');
+  const [name, setName] = useState('Gerry');
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDownloadingQR, setIsDownloadingQR] = useState(false);
   const [qrDownloaded, setQrDownloaded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('queuemate_customer_name');
+      if (saved && saved.trim()) {
+        setCustomerName(saved.trim());
+        setName(saved.trim());
+      } else {
+        localStorage.setItem('queuemate_customer_name', 'Gerry');
+        setCustomerName('Gerry');
+        setName('Gerry');
+      }
+      const savedPhone = localStorage.getItem('queuemate_customer_phone');
+      if (savedPhone && savedPhone.trim()) {
+        setPhone(savedPhone.trim());
+      }
+    }
+  }, []);
+
+  const getGreeting = () => {
+    if (typeof window === 'undefined') return 'Good morning,';
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning,';
+    if (hour < 18) return 'Good afternoon,';
+    return 'Good evening,';
+  };
 
   // Strict operating hours & queue window check
   const autoEligibility = selectedCompany ? checkQueueEligibility(selectedCompany) : { canQueue: true, windowInfo: '' };
@@ -214,68 +244,68 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
   });
 
   return (
-    <div className={`w-full min-h-screen flex flex-col justify-between select-none transition-colors duration-200 ${
+    <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between select-none transition-colors duration-200 ${
       darkMode ? 'bg-[#101927] text-white' : 'bg-[#F4FAF6] text-slate-900'
     }`}>
       {/* ============================================================== */}
       {/* VIEW: PROFILE SCREEN (Matches user screenshot)                 */}
       {/* ============================================================== */}
       {bottomTab === 'profile' ? (
-        <ProfileView defaultRole="Customer" />
+        <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
+          <ProfileView defaultRole="Customer" />
+        </div>
       ) : bottomTab === 'settings' ? (
-        <SettingsView onSwitchRole={onSwitchRole || onBackToWelcome} />
+        <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
+          <SettingsView onSwitchRole={onSwitchRole || onBackToWelcome} />
+        </div>
       ) : bottomTab === 'about' ? (
-        <AboutView />
+        <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
+          <AboutView />
+        </div>
       ) : !selectedCompany ? (
-        <div className="w-full flex-1 flex flex-col">
-          {/* Header */}
-          <div className="w-full max-w-sm mx-auto pt-7 px-4 pb-2">
-            <div className="flex items-center space-x-3 mb-4">
-              {(onSwitchRole || onBackToWelcome) && (
-                <button
-                  onClick={onSwitchRole || onBackToWelcome}
-                  className={`w-9 h-9 rounded-full border flex items-center justify-center shadow-2xs transition-colors cursor-pointer flex-shrink-0 ${
-                    darkMode
-                      ? 'bg-[#182335] border-slate-700/60 text-slate-300 hover:bg-[#223044]'
-                      : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50'
-                  }`}
-                  title="Back to roles"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Logo: Green squircle with white "Q" */}
-              <div className="w-8 h-8 rounded-lg bg-[#00A843] flex items-center justify-center shadow-xs flex-shrink-0">
-                <span className="text-white font-extrabold text-[17px] leading-none select-none font-sans">
-                  Q
-                </span>
-              </div>
-
+        <div className="w-full flex-1 flex flex-col max-w-[420px] mx-auto overflow-hidden min-h-0">
+          {/* STATIONARY TOP PART: Greeting & Name + Avatar + Search Bar */}
+          <div className={`w-full flex-shrink-0 px-4 pt-5 pb-1.5 z-20 transition-colors ${
+            darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
+          }`}>
+            {/* Header Row: Greeting & Name on Left, Circular Green Avatar on Right */}
+            <div className="flex items-center justify-between mb-3.5">
               <div>
-                <h1 className={`text-[20px] font-bold tracking-tight leading-tight transition-colors duration-200 ${
+                <p className={`text-[13px] font-medium leading-none mb-1.5 ${
+                  darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>
+                  {getGreeting()}
+                </p>
+                <h1 className={`text-[23px] sm:text-[25px] font-extrabold tracking-tight leading-none flex items-center gap-1.5 ${
                   darkMode ? 'text-white' : 'text-slate-900'
                 }`}>
-                  Find a Queue
+                  <span>{customerName}</span>
+                  <span className="text-[22px] select-none">👋</span>
                 </h1>
-                <p className="text-[12px] text-slate-400 font-normal">
-                  {filteredCompanies.length} {filteredCompanies.length === 1 ? 'company' : 'companies'} available
-                </p>
               </div>
+
+              {/* Avatar Badge: Green Circle with initial letter */}
+              <button
+                onClick={() => setBottomTab('profile')}
+                title="View Profile"
+                className="w-10 h-10 rounded-full bg-[#00A843] hover:bg-[#00963c] active:scale-95 text-white font-bold text-[17px] flex items-center justify-center shadow-xs cursor-pointer transition-all flex-shrink-0"
+              >
+                {customerName ? customerName.trim().charAt(0).toUpperCase() : 'G'}
+              </button>
             </div>
 
-            {/* Search Input */}
-            <div className={`w-full rounded-xl border px-3.5 py-2.5 flex items-center space-x-2.5 shadow-xs focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/15 transition-all duration-200 ${
+            {/* Search Bar */}
+            <div className={`w-full rounded-2xl border px-3.5 py-3 flex items-center space-x-2.5 shadow-2xs mb-2 transition-all duration-200 ${
               darkMode 
-                ? 'bg-[#182335] border-slate-700/60' 
-                : 'bg-white border-slate-200/80'
+                ? 'bg-[#182335] border-slate-700/60 focus-within:border-emerald-500' 
+                : 'bg-white border-slate-200/90 focus-within:border-emerald-500'
             }`}>
               <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by name, industry..."
+                placeholder="Search companies to queue at..."
                 className={`w-full bg-transparent text-sm outline-none transition-colors ${
                   darkMode ? 'text-white placeholder-slate-400' : 'text-slate-800 placeholder-slate-400'
                 }`}
@@ -291,88 +321,166 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
             </div>
           </div>
 
-          {/* Companies List */}
-          <div className="w-full max-w-sm mx-auto flex-1 px-4 py-3 space-y-3.5 overflow-y-auto">
-            {filteredCompanies.map((company) => (
-              <div
-                key={company.id}
-                onClick={() => {
-                  setSelectedCompany(company);
-                  setManualClosedOverride(null);
-                }}
-                className={`w-full rounded-2xl p-4 shadow-sm border transition-all duration-200 flex items-center justify-between cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
-                  darkMode
-                    ? 'bg-[#182335] border-slate-700/60 hover:border-slate-600'
-                    : 'bg-white border-slate-100/90 hover:border-emerald-300 hover:shadow-md'
-                }`}
-              >
-                {/* Left Icon Container */}
-                <div className={`w-13 h-13 rounded-2xl border flex items-center justify-center p-2.5 flex-shrink-0 group-hover:scale-105 transition-transform ${
-                  darkMode ? 'bg-[#223044] border-slate-700/50' : 'bg-slate-50 border-slate-100'
-                }`}>
-                  {company.icon === 'bank' && <BankIcon className="w-7 h-7" />}
-                  {company.icon === 'clinic' && <ClinicIcon className="w-7 h-7" />}
-                  {company.icon === 'techmart' && <TechMartIcon className="w-7 h-7" />}
-                </div>
+          {/* SCROLLABLE MIDDLE CONTENT: Available Companies & Helpful Tips */}
+          <div className="flex-1 overflow-y-auto px-4 pt-1 pb-6 overscroll-contain space-y-4">
 
-                {/* Middle Details */}
-                <div className="flex-1 min-w-0 px-3.5 text-left">
-                  <h2 className={`text-[15px] font-bold leading-tight mb-0.5 transition-colors duration-200 ${
-                    darkMode ? 'text-white' : 'text-slate-900'
-                  }`}>
-                    {company.name}
-                  </h2>
-                  <p className="text-[12px] text-slate-400 font-medium mb-1">
-                    {company.industry}
-                  </p>
-                  <p className={`text-[12.5px] font-normal truncate max-w-[190px] mb-2 transition-colors duration-200 ${
-                    darkMode ? 'text-slate-400' : 'text-slate-500'
-                  }`}>
-                    {company.description}
-                  </p>
+          {/* Section: Available Companies */}
+          <div className="flex items-center justify-between mb-3 px-0.5">
+            <h2 className={`text-[16px] font-bold tracking-tight ${
+              darkMode ? 'text-white' : 'text-slate-900'
+            }`}>
+              Available Companies
+            </h2>
+            <span className="text-[12px] text-slate-400 font-medium">
+              {filteredCompanies.length} found
+            </span>
+          </div>
 
-                  <div className="flex items-center space-x-3 text-[11.5px] text-slate-400 font-medium">
+          {/* Company Cards List */}
+          <div className="space-y-3">
+            {filteredCompanies.map((company) => {
+              const waitingInCompany = tickets.filter(
+                (t) => t.businessId === company.id && t.status === 'waiting'
+              ).length;
+              const displayHours = company.queueWindow 
+                ? company.queueWindow.replace(/\s*–\s*|\s*-\s*/g, '–')
+                : (company.workingHours ? company.workingHours.replace(/\s*–\s*|\s*-\s*/g, '–') : '08:00–16:30');
+
+              return (
+                <div
+                  key={company.id}
+                  onClick={() => {
+                    setSelectedCompany(company);
+                    setManualClosedOverride(null);
+                  }}
+                  className={`w-full rounded-2xl p-4 shadow-2xs border transition-all duration-200 cursor-pointer group hover:scale-[1.01] active:scale-[0.99] ${
+                    darkMode
+                      ? 'bg-[#182335] border-slate-700/60 hover:border-emerald-500'
+                      : 'bg-white border-slate-200/80 hover:border-emerald-300 hover:shadow-md'
+                  }`}
+                >
+                  {/* Top Row: Icon + Name / Industry + Right Chevron */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center p-2 flex-shrink-0 group-hover:scale-105 transition-transform ${
+                        darkMode ? 'bg-[#223044] border-slate-700/50' : 'bg-slate-50 border-slate-100/90'
+                      }`}>
+                        {company.icon === 'bank' && <BankIcon className="w-7 h-7" />}
+                        {company.icon === 'clinic' && <ClinicIcon className="w-7 h-7" />}
+                        {company.icon === 'techmart' && <TechMartIcon className="w-7 h-7" />}
+                      </div>
+
+                      <div className="min-w-0 text-left">
+                        <h3 className={`text-[15px] font-bold leading-tight transition-colors duration-200 ${
+                          darkMode ? 'text-white' : 'text-slate-900 group-hover:text-emerald-600'
+                        }`}>
+                          {company.name}
+                        </h3>
+                        <p className="text-[12px] text-slate-400 font-normal mt-0.5">
+                          {company.industry}
+                        </p>
+                      </div>
+                    </div>
+
+                    <ChevronRight className="w-4 h-4 text-slate-400 transition-transform group-hover:translate-x-0.5 flex-shrink-0" />
+                  </div>
+
+                  {/* Bottom Badges Row: Open pill, waiting count, hours */}
+                  <div className="flex items-center space-x-3 text-[11.5px] text-slate-500 dark:text-slate-400 font-medium pl-0.5">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                      company.status === 'Open' || company.status === undefined
+                        ? (darkMode ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/40' : 'bg-[#D7F5DE] text-[#00A843]')
+                        : (darkMode ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                    }`}>
+                      {company.status || 'Open'}
+                    </span>
+
                     <span className="flex items-center space-x-1">
                       <Users className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{tickets.filter((t) => t.businessId === company.id && t.status === 'waiting').length} waiting</span>
+                      <span>{waitingInCompany} waiting</span>
                     </span>
+
                     <span className="flex items-center space-x-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{company.workingHours}</span>
+                      <span>{displayHours}</span>
                     </span>
                   </div>
                 </div>
-
-                {/* Right Status Badge & Chevron */}
-                <div className="flex items-center space-x-1.5 flex-shrink-0">
-                  <span className={`text-[11px] font-medium px-2.5 py-0.5 rounded-full border transition-colors duration-200 ${
-                    darkMode 
-                      ? 'bg-[#223044] text-slate-300 border-slate-700/50' 
-                      : 'bg-slate-100 text-slate-500 border-transparent'
-                  }`}>
-                    {company.status}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-400 transition-transform group-hover:translate-x-0.5" />
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {filteredCompanies.length === 0 && (
-              <div className="text-center py-12 text-slate-400">
-                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-medium">No companies match your search</p>
+              <div className="text-center py-12 text-slate-400 bg-white dark:bg-[#182335] rounded-2xl border border-slate-200/80 dark:border-slate-700/60 p-6">
+                <Search className="w-8 h-8 mx-auto mb-2 opacity-50 text-slate-400" />
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No companies match your search</p>
                 <p className="text-xs text-slate-400 mt-1">Try another keyword</p>
               </div>
             )}
           </div>
+
+          {/* Section: Helpful Tips */}
+          <div className="mt-6">
+            <h2 className={`text-[13.5px] font-semibold mb-3 px-0.5 ${
+              darkMode ? 'text-slate-400' : 'text-slate-500'
+            }`}>
+              Helpful Tips
+            </h2>
+
+            <div className="space-y-2.5">
+              {/* Tip 1: Bell */}
+              <div className={`w-full rounded-2xl p-3.5 border shadow-2xs flex items-center space-x-3 transition-colors ${
+                darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-200/80'
+              }`}>
+                <div className="w-8 h-8 rounded-xl bg-[#E8F8EE] dark:bg-emerald-950/60 flex items-center justify-center flex-shrink-0 text-[#00A843] dark:text-emerald-400">
+                  <Bell className="w-4 h-4 stroke-[2.2]" />
+                </div>
+                <p className={`text-[12.5px] font-normal leading-snug ${
+                  darkMode ? 'text-slate-300' : 'text-slate-600'
+                }`}>
+                  Keep this page open to track your queue position live.
+                </p>
+              </div>
+
+              {/* Tip 2: Coffee */}
+              <div className={`w-full rounded-2xl p-3.5 border shadow-2xs flex items-center space-x-3 transition-colors ${
+                darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-200/80'
+              }`}>
+                <div className="w-8 h-8 rounded-xl bg-[#E8F8EE] dark:bg-emerald-950/60 flex items-center justify-center flex-shrink-0 text-[#00A843] dark:text-emerald-400">
+                  <Coffee className="w-4 h-4 stroke-[2.2]" />
+                </div>
+                <p className={`text-[12.5px] font-normal leading-snug ${
+                  darkMode ? 'text-slate-300' : 'text-slate-600'
+                }`}>
+                  Your spot is saved — feel free to step away while you wait.
+                </p>
+              </div>
+
+              {/* Tip 3: Star */}
+              <div className={`w-full rounded-2xl p-3.5 border shadow-2xs flex items-center space-x-3 transition-colors ${
+                darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-200/80'
+              }`}>
+                <div className="w-8 h-8 rounded-xl bg-[#E8F8EE] dark:bg-emerald-950/60 flex items-center justify-center flex-shrink-0 text-[#00A843] dark:text-emerald-400">
+                  <Star className="w-4 h-4 stroke-[2.2]" />
+                </div>
+                <p className={`text-[12.5px] font-normal leading-snug ${
+                  darkMode ? 'text-slate-300' : 'text-slate-600'
+                }`}>
+                  You can only join within the company&apos;s listed hours.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
       ) : (
         /* ============================================================== */
         /* VIEW B: JOIN QUEUE COMPANY SCREEN (Matches user's screenshot)  */
         /* ============================================================== */
-        <div className="w-full flex-1 flex flex-col">
-          {/* Top Bar with Circle Back Button and "Join Queue" Title */}
-          <div className="w-full max-w-sm mx-auto pt-6 px-4 pb-2 flex items-center space-x-3">
+        <div className="w-full flex-1 flex flex-col overflow-hidden min-h-0">
+          {/* Top Bar with Circle Back Button and "Join Queue" Title (STATIONARY) */}
+          <div className={`w-full max-w-sm mx-auto pt-5 px-4 pb-2 flex items-center space-x-3 flex-shrink-0 z-20 ${
+            darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
+          }`}>
             <button
               onClick={() => setSelectedCompany(null)}
               className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-2xs transition-colors cursor-pointer ${
@@ -392,7 +500,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
           </div>
 
           {/* Scrollable Content Container */}
-          <div className="w-full flex-1 max-w-sm mx-auto px-4 py-3 space-y-4 overflow-y-auto">
+          <div className="w-full flex-1 max-w-sm mx-auto px-4 py-3 space-y-4 overflow-y-auto overscroll-contain">
             {/* 1. Company Profile Card */}
             <div className={`rounded-3xl p-5 shadow-sm border animate-scale-in transition-colors duration-200 ${
               darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-100/90'
@@ -701,25 +809,22 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
       )}
 
       {/* ============================================================== */}
-      {/* BOTTOM NAVIGATION BAR (Shown on "Find a Queue", Profile, Settings & About) */}
+      {/* BOTTOM NAVIGATION BAR (Always stationary & visible in Customer Portal) */}
       {/* ============================================================== */}
-      {(!selectedCompany || bottomTab === 'profile' || bottomTab === 'settings' || bottomTab === 'about') && (
-        <div className={`w-full py-2 px-6 flex items-center justify-around shadow-sm mt-auto transition-colors duration-200 ${
-          darkMode 
-            ? 'bg-[#101927] border-t border-slate-800' 
-            : 'bg-white border-t border-slate-100/90'
-        }`}>
+      <div className={`w-full flex-shrink-0 border-t py-2 shadow-sm transition-colors duration-200 z-40 ${
+        darkMode 
+          ? 'bg-[#101927] border-slate-800' 
+          : 'bg-white border-slate-100/90'
+      }`}>
+        <div className="w-full max-w-[420px] mx-auto px-6 flex items-center justify-around">
           {/* Home */}
           <button
             onClick={() => {
-              if (bottomTab === 'profile' || bottomTab === 'settings' || bottomTab === 'about') {
-                setBottomTab('home');
-              } else if (onBackToWelcome) {
-                onBackToWelcome();
-              }
+              setBottomTab('home');
+              setSelectedCompany(null);
             }}
             className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${
-              bottomTab === 'home'
+              bottomTab === 'home' && !selectedCompany
                 ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-xs'
                 : (darkMode ? 'text-slate-400 hover:text-white py-1.5 px-3' : 'text-slate-400 hover:text-slate-600 py-1.5 px-3')
             }`}
@@ -730,7 +835,10 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
 
           {/* Profile */}
           <button
-            onClick={() => setBottomTab('profile')}
+            onClick={() => {
+              setBottomTab('profile');
+              setSelectedCompany(null);
+            }}
             className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${
               bottomTab === 'profile'
                 ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-xs'
@@ -743,7 +851,10 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
 
           {/* Settings */}
           <button
-            onClick={() => setBottomTab('settings')}
+            onClick={() => {
+              setBottomTab('settings');
+              setSelectedCompany(null);
+            }}
             className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${
               bottomTab === 'settings'
                 ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-xs'
@@ -756,7 +867,10 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
 
           {/* About */}
           <button
-            onClick={() => setBottomTab('about')}
+            onClick={() => {
+              setBottomTab('about');
+              setSelectedCompany(null);
+            }}
             className={`cursor-pointer transition-all duration-150 flex flex-col items-center ${
               bottomTab === 'about'
                 ? 'bg-[#00A843] text-white py-1.5 px-4 rounded-xl shadow-xs'
@@ -767,7 +881,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
             <span className="text-[10px] font-medium mt-0.5">About</span>
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 };

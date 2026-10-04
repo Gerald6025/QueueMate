@@ -99,7 +99,7 @@ export const INITIAL_BUSINESSES: Business[] = [
   },
   {
     id: 'tech-mart',
-    name: 'TechMart Support',
+    name: 'TechMart',
     industry: 'Retail',
     description: 'Electronics, gadgets and warranty repair counter',
     fullDescription: 'Electronics, gadgets, and tech accessories customer support and sales.',
@@ -155,7 +155,7 @@ export const INITIAL_STAFF: StaffMember[] = [
   {
     id: 'staff-4',
     businessId: 'tech-mart',
-    businessName: 'TechMart Support',
+    businessName: 'TechMart',
     name: 'David Kim',
     email: 'david@techmart.com',
     role: 'Tech Specialist',

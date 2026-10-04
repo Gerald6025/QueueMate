@@ -37,11 +37,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
       return;
     }
 
+    const savedName = typeof window !== 'undefined' ? localStorage.getItem('queuemate_customer_name') : null;
+    const resolvedName = fullName.trim() || savedName || 'Gerry';
+
     setToastMessage(isSignUp ? 'Account created successfully!' : 'Signed in successfully!');
     setTimeout(() => {
       onLoginSuccess({
         phone: phone.trim(),
-        name: isSignUp ? fullName.trim() : undefined,
+        name: resolvedName,
       });
     }, 400);
   };
