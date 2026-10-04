@@ -5,6 +5,7 @@ import { Ticket, Counter, ServiceId, SERVICE_CATEGORIES, Business, StaffMember }
 import { AudioService } from '@/utils/audio';
 import {
   isSupabaseConfigured,
+  supabase,
   getBusinessesFromDB,
   saveBusinessToDB,
   deleteBusinessFromDB,
@@ -306,10 +307,30 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [darkMode, setDarkMode] = useState<boolean>(false);
 
-  // Initialize from Supabase if configured, otherwise localStorage
+  // Initialize from localStorage first, then sync with Supabase and setup real-time listeners
   useEffect(() => {
-    async function loadData() {
-      if (isSupabaseConfigured()) {
+    // 1. Immediately hydrate from localStorage for instantaneous UI
+    try {
+      const savedBusinesses = localStorage.getItem('queuemate_businesses');
+      const savedStaff = localStorage.getItem('queuemate_staff');
+      const savedTickets = localStorage.getItem('qms_tickets');
+      const savedCounters = localStorage.getItem('qms_counters');
+      const savedCustomerTicket = localStorage.getItem('qms_my_ticket');
+      const savedDark = localStorage.getItem('queuemate_setting_dark');
+
+      if (savedBusinesses) setBusinesses(JSON.parse(savedBusinesses));
+      if (savedStaff) setStaffMembers(JSON.parse(savedStaff));
+      if (savedTickets) setTickets(JSON.parse(savedTickets));
+      if (savedCounters) setCounters(JSON.parse(savedCounters));
+      if (savedCustomerTicket) setCurrentCustomerTicket(JSON.parse(savedCustomerTicket));
+      if (savedDark !== null) setDarkMode(savedDark === 'true');
+    } catch {
+      // LocalStorage fallback
+    }
+
+    // 2. Fetch latest state from Supabase if configured
+    if (isSupabaseConfigured()) {
+      (async () => {
         try {
           const [dbBusinesses, dbStaff, dbTickets] = await Promise.all([
             getBusinessesFromDB(),
@@ -321,30 +342,74 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (dbStaff && dbStaff.length > 0) setStaffMembers(dbStaff);
           if (dbTickets && dbTickets.length > 0) setTickets(dbTickets);
         } catch (err) {
-          console.warn('Supabase fetch failed on mount, using local fallback:', err);
+          console.warn('Supabase fetch failed on mount:', err);
         }
-      } else {
-        try {
-          const savedBusinesses = localStorage.getItem('queuemate_businesses');
-          const savedStaff = localStorage.getItem('queuemate_staff');
-          const savedTickets = localStorage.getItem('qms_tickets');
-          const savedCounters = localStorage.getItem('qms_counters');
-          const savedCustomerTicket = localStorage.getItem('qms_my_ticket');
-          const savedDark = localStorage.getItem('queuemate_setting_dark');
-
-          if (savedBusinesses) setBusinesses(JSON.parse(savedBusinesses));
-          if (savedStaff) setStaffMembers(JSON.parse(savedStaff));
-          if (savedTickets) setTickets(JSON.parse(savedTickets));
-          if (savedCounters) setCounters(JSON.parse(savedCounters));
-          if (savedCustomerTicket) setCurrentCustomerTicket(JSON.parse(savedCustomerTicket));
-          if (savedDark !== null) setDarkMode(savedDark === 'true');
-        } catch {
-          // LocalStorage fallback
-        }
-      }
+      })();
     }
 
-    loadData();
+    // 3. Setup real-time updates from Supabase + 3.5s periodic polling fallback
+    let intervalId: NodeJS.Timeout | null = null;
+    let channel: any = null;
+
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        channel = supabase
+          .channel('realtime_tickets_stream')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'tickets' },
+            async () => {
+              const freshTickets = await getTicketsFromDB();
+              if (freshTickets && freshTickets.length > 0) {
+                setTickets(freshTickets);
+              }
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.warn('Supabase realtime subscription error:', err);
+      }
+
+      intervalId = setInterval(async () => {
+        try {
+          const freshTickets = await getTicketsFromDB();
+          if (freshTickets && freshTickets.length > 0) {
+            setTickets(freshTickets);
+          }
+        } catch {}
+      }, 3500);
+    }
+
+    // 4. Cross-tab synchronization via storage events (same browser / device)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'qms_tickets' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setTickets(parsed);
+          }
+        } catch {}
+      }
+      if (e.key === 'queuemate_businesses' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setBusinesses(parsed);
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Sync darkMode with html document element and localStorage

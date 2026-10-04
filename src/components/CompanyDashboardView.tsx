@@ -28,6 +28,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { useQueue } from '@/context/QueueContext';
+import { Ticket } from '@/types/queue';
 import { SettingsView } from './SettingsView';
 import { ProfileView } from './ProfileView';
 import { AboutView } from './AboutView';
@@ -93,7 +94,14 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   const [isEditingCompanyProfile, setIsEditingCompanyProfile] = useState(false);
   const [companyToast, setCompanyToast] = useState<string | null>(null);
 
-  const currentBiz = businesses.find((b) => b.name.toLowerCase() === compName.toLowerCase() || b.name.toLowerCase() === companyName.toLowerCase()) || businesses[0] || null;
+  const currentBiz =
+    businesses.find(
+      (b) =>
+        (companyName && b.id?.toLowerCase() === companyName.toLowerCase().trim()) ||
+        (companyName && b.name.toLowerCase() === companyName.toLowerCase().trim()) ||
+        (compName && b.id?.toLowerCase() === compName.toLowerCase().trim()) ||
+        (compName && b.name.toLowerCase() === compName.toLowerCase().trim())
+    ) || businesses[0] || null;
 
   // Load saved company details from localStorage on mount
   React.useEffect(() => {
@@ -143,14 +151,35 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   };
 
   // Compute live queue statistics SCOPED strictly to THIS business
+  const isBizMatch = (t: Ticket) => {
+    if (!currentBiz) return true;
+    const curId = (currentBiz.id || '').trim().toLowerCase();
+    const curName = (currentBiz.name || '').trim().toLowerCase();
+    const activeName = (compName || '').trim().toLowerCase();
+    const tId = (t.businessId || '').trim().toLowerCase();
+    const tName = (t.businessName || '').trim().toLowerCase();
+
+    // If ticket doesn't specify a business ID or name, attribute it to active business
+    if (!tId && !tName) return true;
+
+    return (
+      (tId && curId && tId === curId) ||
+      (tName && curName && tName === curName) ||
+      (tName && activeName && tName === activeName) ||
+      (curId && tId && (tId.includes(curId) || curId.includes(tId))) ||
+      (curName && tName && (tName.includes(curName) || curName.includes(tName))) ||
+      (activeName && tName && (tName.includes(activeName) || activeName.includes(tName)))
+    );
+  };
+
   const waitingTickets = tickets.filter(
-    (t) => t.status === 'waiting' && (!currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name)
+    (t) => t.status === 'waiting' && isBizMatch(t)
   );
   const servingTickets = tickets.filter(
-    (t) => t.status === 'serving' && (!currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name)
+    (t) => t.status === 'serving' && isBizMatch(t)
   );
   const doneTodayTickets = tickets.filter(
-    (t) => t.status === 'completed' && (!currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name)
+    (t) => t.status === 'completed' && isBizMatch(t)
   );
   const currentBizStaff = staffMembers.filter(
     (s) => !currentBiz || s.businessId === currentBiz.id || s.businessName === currentBiz.name
