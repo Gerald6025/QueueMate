@@ -174,15 +174,15 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   const isOpen = currentBiz?.status === 'Open';
 
   return (
-    <div className={`w-full min-h-screen flex flex-col justify-between select-none transition-colors duration-200 ${
+    <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col justify-between select-none transition-colors duration-200 ${
       darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
     }`}>
       {/* Content Area */}
-      <div className="w-full max-w-sm mx-auto flex-1 flex flex-col px-4 pt-0 pb-2 overflow-y-auto max-h-[calc(100dvh-64px)] animate-scale-in">
+      <div className="w-full max-w-sm mx-auto flex-1 min-h-0 flex flex-col px-4 pt-0 pb-2 overflow-y-auto overscroll-contain animate-scale-in">
         
         {/* If Bottom Nav is NOT 'home', render other screens */}
         {activeNavTab === 'profile' ? (
-          <div className="flex-1 flex flex-col pt-6 pb-4 space-y-4 animate-scale-in">
+          <div className="w-full flex-1 flex flex-col pt-5 pb-8 space-y-4 animate-scale-in">
             {/* Header: Company Profile + Subtitle */}
             <div className="pb-1">
               <h1 className={`text-[23px] sm:text-[25px] font-extrabold tracking-tight leading-tight ${
@@ -1281,10 +1281,10 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
       </div>
 
       {/* BOTTOM NAVIGATION BAR (Matches user screenshot: Home, Profile, Settings, About) */}
-      <div className={`w-full border-t transition-colors duration-200 ${
-        darkMode ? 'bg-[#101927] border-slate-800' : 'bg-white border-slate-100'
+      <div className={`w-full flex-shrink-0 border-t py-2 shadow-sm transition-colors duration-200 z-40 ${
+        darkMode ? 'bg-[#101927] border-slate-800' : 'bg-white border-slate-100/90'
       }`}>
-        <div className="w-full max-w-sm mx-auto flex items-center justify-around py-2.5 px-4">
+        <div className="w-full max-w-sm mx-auto flex items-center justify-around px-4">
           {/* Home Tab */}
           <button
             onClick={() => {
