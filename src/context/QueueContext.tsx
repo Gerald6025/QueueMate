@@ -611,6 +611,18 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (parsed.ticketId) targetTicketId = parsed.ticketId;
         if (parsed.number) targetNumber = parsed.number;
       } catch {}
+    } else if (qrOrTicketId.includes('ticket=') || qrOrTicketId.includes('?')) {
+      try {
+        const url = new URL(qrOrTicketId, 'http://localhost');
+        const paramTicket = url.searchParams.get('ticket');
+        const paramNum = url.searchParams.get('num');
+        if (paramTicket) targetTicketId = paramTicket;
+        if (paramNum) targetNumber = paramNum;
+      } catch {}
+    } else if (qrOrTicketId.toUpperCase().startsWith('TICKET:')) {
+      const parts = qrOrTicketId.split(':');
+      if (parts.length >= 2) targetNumber = parts[1];
+      if (parts.length >= 3) targetTicketId = parts[2];
     }
 
     // Match ticket by ID or Number

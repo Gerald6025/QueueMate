@@ -34,15 +34,18 @@ export const TicketQRCode: React.FC<TicketQRCodeProps> = ({
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
   useEffect(() => {
-    const payload = JSON.stringify({
-      ticketId: ticket.id,
-      number: ticket.number,
-      businessId: ticket.businessId || 'city-bank',
-      businessName: ticket.businessName || 'City Bank',
-      customerName: ticket.customerName || 'Customer',
-      categoryId: ticket.categoryId,
-      createdAt: ticket.createdAt,
-    });
+    // Generate QR payload:
+    // If running on a public non-localhost origin, provide a valid URL.
+    // Otherwise use a clean TICKET identifier so phone cameras don't try to open invalid JSON as a URL.
+    let payload = `TICKET:${ticket.number}:${ticket.id}`;
+    if (typeof window !== 'undefined' && window.location.origin) {
+      const isLocalhost = 
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1';
+      if (!isLocalhost && window.location.protocol.startsWith('http')) {
+        payload = `${window.location.origin}/?ticket=${encodeURIComponent(ticket.id)}&num=${encodeURIComponent(ticket.number)}`;
+      }
+    }
 
     QRCode.toDataURL(payload, {
       width: size * 2,

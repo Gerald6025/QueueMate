@@ -12,11 +12,13 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Search, 
-  Sparkles,
-  Clock,
-  Building2,
-  RefreshCw,
-  Zap
+  Sparkles, 
+  Clock, 
+  Building2, 
+  RefreshCw, 
+  Zap,
+  Image as ImageIcon,
+  ShieldAlert
 } from 'lucide-react';
 
 interface QRScannerModalProps {
@@ -40,20 +42,78 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     type: 'idle',
     message: '',
   });
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const readerElementId = 'qr-code-reader-element';
 
-  // Check if scanning is allowed during current operating times
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isInsecureOrigin, setIsInsecureOrigin] = useState(false);
+
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const readerElementId = 'qr-code-isolated-reader';
+
+  // Check 24/7 scanning eligibility
   const eligibility = checkScanEligibility(business);
 
-  // Initialize or cleanup camera scanner
+  useEffect(() => {
+    // Check if running on an insecure origin (HTTP on a non-localhost IP),
+    // which causes mobile browsers (Chrome / Samsung Internet) to block live camera streams
+    if (typeof window !== 'undefined') {
+      const isLocal = 
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1';
+      const isHttps = window.location.protocol === 'https:';
+      if (!isLocal && !isHttps) {
+        setIsInsecureOrigin(true);
+      }
+    }
+
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
+  const stopCamera = async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        await scannerRef.current.clear();
+      } catch (e) {
+        console.warn('Error stopping camera:', e);
+      }
+      scannerRef.current = null;
+    }
+    setIsCameraActive(false);
+    setIsStartingCamera(false);
+  };
+
   const startCamera = async () => {
     setCameraError(null);
+    setIsStartingCamera(true);
+
+    // Check mediaDevices support
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      setCameraError(
+        'Live camera streaming is blocked by your browser on HTTP. Please use "Take Photo of QR" below or enter the ticket number.'
+      );
+      setIsStartingCamera(false);
+      return;
+    }
+
     try {
       if (scannerRef.current) {
-        await scannerRef.current.stop().catch(() => {});
+        try {
+          if (scannerRef.current.isScanning) {
+            await scannerRef.current.stop();
+          }
+          await scannerRef.current.clear();
+        } catch {}
       }
 
       const html5QrCode = new Html5Qrcode(readerElementId);
@@ -67,45 +127,59 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         },
         async (decodedText) => {
           handleProcessCode(decodedText);
-          try {
-            await html5QrCode.stop();
-            setIsCameraActive(false);
-          } catch {}
+          await stopCamera();
         },
-        () => {} // scan error (ignore frames without QR)
+        () => {} // frame without QR, ignore
       );
 
       setIsCameraActive(true);
     } catch (err: any) {
       console.warn('Camera start error:', err);
-      setCameraError(
-        err?.message || 'Unable to access camera. Please allow camera permissions or use manual entry.'
-      );
-      setIsCameraActive(false);
-    }
-  };
-
-  const stopCamera = async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-      } catch {}
-      setIsCameraActive(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
+      let msg = err?.message || 'Unable to access camera.';
+      if (err?.name === 'NotAllowedError' || msg.includes('Permission')) {
+        msg = 'Camera permission was denied. Please allow camera access in browser settings or use Photo / Manual entry.';
+      } else if (err?.name === 'NotFoundError') {
+        msg = 'No camera found on this device.';
+      } else if (err?.name === 'NotReadableError') {
+        msg = 'Camera is already in use by another application.';
+      } else if (isInsecureOrigin) {
+        msg = 'Camera access requires HTTPS or localhost. Use "Take Photo of QR" below to snap a picture.';
       }
-    };
-  }, []);
+      setCameraError(msg);
+      setIsCameraActive(false);
+    } finally {
+      setIsStartingCamera(false);
+    }
+  };
+
+  // Mobile Native Camera / Image File Fallback (Works on ALL phones and over HTTP)
+  const handleFileCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanStatus({ type: 'idle', message: '' });
+    setCameraError(null);
+
+    try {
+      const html5QrCode = new Html5Qrcode(readerElementId);
+      const decodedText = await html5QrCode.scanFile(file, true);
+      handleProcessCode(decodedText);
+    } catch (err: any) {
+      setScanStatus({
+        type: 'error',
+        message: 'Could not detect a valid QR code in the image. Please try again or enter ticket number.',
+      });
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleProcessCode = async (rawCode: string) => {
     if (!rawCode.trim()) return;
 
-    // Check operating hours allowed
+    // Check operating hours allowed (open 24/7)
     if (!eligibility.canScan) {
       setScanStatus({
         type: 'error',
@@ -138,22 +212,22 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
     handleProcessCode(manualCode);
   };
 
-  // Get waiting tickets for quick test-scan
+  // Get waiting tickets for quick one-click test-scan
   const waitingTickets = tickets.filter(
     (t) => t.status === 'waiting' && (!business || !t.businessId || t.businessId === business.id)
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
       <div 
-        className={`w-full max-w-md rounded-3xl p-5 shadow-2xl border transition-all animate-scale-in max-h-[90vh] overflow-y-auto ${
+        className={`w-full max-w-md rounded-3xl p-5 shadow-2xl border transition-all animate-scale-in max-h-[92vh] overflow-y-auto ${
           darkMode ? 'bg-[#141E2E] border-slate-700/80 text-white' : 'bg-white border-slate-200 text-slate-900'
         }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200/50 mb-4">
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center flex-shrink-0">
               <QrCode className="w-5 h-5" />
             </div>
             <div>
@@ -170,29 +244,17 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               stopCamera();
               onClose();
             }}
-            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* City Bank 24/7 Testing Indicator */}
-        {business && (business.id === 'city-bank' || business.name.toLowerCase().includes('city bank')) && (
-          <div className="mb-3 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center space-x-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Testing Active: City Bank scans 24/7 regardless of the time</span>
-          </div>
-        )}
-
-        {/* Operating Hours Check Notice */}
-        {!eligibility.canScan && (
-          <div className="mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-start space-x-2.5">
-            <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold">Outside Operating Times:</span> {eligibility.reason}
-            </div>
-          </div>
-        )}
+        {/* 24/7 Active Scanning Indicator */}
+        <div className="mb-3 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center space-x-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Scanner Active: Available 24/7 at any time</span>
+        </div>
 
         {/* Scan Status Feedback */}
         {scanStatus.type !== 'idle' && (
@@ -224,48 +286,92 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
         {/* Camera Scanner Viewport */}
         <div className="mb-4">
+          {/* Isolated video container strictly managed by Html5Qrcode - ZERO React children */}
           <div 
             id={readerElementId} 
-            className={`w-full h-52 rounded-2xl overflow-hidden border flex items-center justify-center relative ${
-              darkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'
-            }`}
-          >
-            {!isCameraActive && (
-              <div className="text-center p-4">
-                <Camera className="w-10 h-10 mx-auto text-slate-400 mb-2" />
-                <p className="text-xs text-slate-500 mb-3 font-medium">
-                  Use device camera to scan ticket QR code
-                </p>
+            className={`w-full rounded-2xl overflow-hidden border ${
+              isCameraActive ? 'block min-h-[220px]' : 'hidden'
+            } ${darkMode ? 'bg-black border-slate-700' : 'bg-black border-slate-200'}`}
+          />
+
+          {/* Placeholder & Action Buttons when camera is inactive */}
+          {!isCameraActive && (
+            <div 
+              className={`w-full rounded-2xl border p-5 flex flex-col items-center justify-center text-center transition-colors ${
+                darkMode ? 'bg-slate-900/60 border-slate-700/80' : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mb-2.5">
+                <Camera className="w-6 h-6" />
+              </div>
+              <p className="text-[13px] font-bold mb-1">
+                Scan Customer Arrival QR Code
+              </p>
+              <p className="text-xs text-slate-400 mb-4 max-w-xs">
+                Use your device camera or snap a quick photo of the ticket
+              </p>
+
+              {/* Actions row: Live Camera + Native Photo */}
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
                 <button
+                  type="button"
                   onClick={startCamera}
-                  disabled={!eligibility.canScan}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+                  disabled={isStartingCamera}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
-                  Start Camera Scanner
+                  <Camera className="w-4 h-4" />
+                  <span>{isStartingCamera ? 'Opening Camera...' : 'Live Camera'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+                    darkMode
+                      ? 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200'
+                      : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-2xs'
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4 text-emerald-500" />
+                  <span>Take / Upload Photo</span>
                 </button>
               </div>
-            )}
-          </div>
 
+              {/* Hidden file input with mobile camera capture */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileCapture}
+                className="hidden"
+              />
+            </div>
+          )}
+
+          {/* Active Camera Controls */}
           {isCameraActive && (
-            <div className="mt-2 flex justify-center">
+            <div className="mt-2.5 flex justify-center">
               <button
+                type="button"
                 onClick={stopCamera}
-                className="text-xs text-rose-500 hover:underline font-semibold"
+                className="px-4 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 text-xs font-semibold cursor-pointer transition-colors"
               >
                 Stop Camera
               </button>
             </div>
           )}
 
+          {/* Camera Error / Notice */}
           {cameraError && (
-            <p className="mt-2 text-[11px] text-amber-500 text-center">
-              {cameraError}
-            </p>
+            <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-start space-x-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{cameraError}</span>
+            </div>
           )}
         </div>
 
-        {/* Manual Barcode / Ticket ID Input */}
+        {/* Manual Ticket Entry */}
         <form onSubmit={handleManualSubmit} className="space-y-2 mb-4">
           <label className="text-xs font-semibold text-slate-400 block">
             Manual Ticket Entry / Barcode Scanner:
@@ -275,7 +381,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               type="text"
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              placeholder="e.g. A-101 or t-101"
+              placeholder="e.g. A-101 or ticket_..."
               className={`flex-1 rounded-xl px-3.5 py-2.5 text-xs border outline-none font-mono ${
                 darkMode
                   ? 'bg-slate-900/80 border-slate-700 text-white placeholder-slate-500'
@@ -284,19 +390,19 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             />
             <button
               type="submit"
-              disabled={!manualCode.trim() || !eligibility.canScan}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-emerald-600 text-white text-xs font-bold disabled:opacity-50 hover:opacity-90 transition-all cursor-pointer whitespace-nowrap"
+              disabled={!manualCode.trim()}
+              className="px-4 py-2.5 rounded-xl bg-[#00A843] hover:bg-[#00963c] text-white text-xs font-bold disabled:opacity-50 transition-all cursor-pointer whitespace-nowrap shadow-xs"
             >
               Verify Ticket
             </button>
           </div>
         </form>
 
-        {/* Quick Demo Scan Buttons */}
+        {/* Quick Scan Waiting Tickets (One-Tap Test) */}
         {waitingTickets.length > 0 && (
           <div className="pt-3 border-t border-slate-200/50">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2 flex items-center">
-              <Zap className="w-3 h-3 mr-1 text-emerald-500" />
+              <Zap className="w-3.5 h-3.5 mr-1 text-[#00A843]" />
               Quick Scan Waiting Tickets:
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -304,7 +410,6 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
                 <button
                   key={t.id}
                   onClick={() => handleProcessCode(t.id)}
-                  disabled={!eligibility.canScan}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                     darkMode
                       ? 'bg-slate-800 border-slate-700 text-slate-200 hover:border-emerald-500'
