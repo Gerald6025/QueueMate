@@ -8,7 +8,8 @@ import {
   Lock, 
   Eye, 
   EyeOff, 
-  CheckCircle2 
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useQueue } from '@/context/QueueContext';
 
@@ -25,22 +26,51 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   const [isSignUp, setIsSignUp] = useState(false);
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const [fullName, setFullName] = useState('');
   const [showPin, setShowPin] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone.trim()) {
-      setToastMessage('Please enter your phone number');
-      setTimeout(() => setToastMessage(null), 2500);
+      showToast('Please enter your phone number', 'error');
       return;
+    }
+
+    if (isSignUp) {
+      if (!pin.trim()) {
+        showToast('Please create a PIN', 'error');
+        return;
+      }
+      if (pin.length < 4) {
+        showToast('PIN must be at least 4 digits', 'error');
+        return;
+      }
+      if (pin !== confirmPin) {
+        showToast('PINs do not match. Please verify.', 'error');
+        return;
+      }
     }
 
     const savedName = typeof window !== 'undefined' ? localStorage.getItem('queuemate_customer_name') : null;
     const resolvedName = fullName.trim() || savedName || 'Gerry';
 
-    setToastMessage(isSignUp ? 'Account created successfully!' : 'Signed in successfully!');
+    if (isSignUp && fullName.trim()) {
+      try {
+        localStorage.setItem('queuemate_customer_name', fullName.trim());
+      } catch {
+        // ignore
+      }
+    }
+
+    showToast(isSignUp ? 'Account created successfully!' : 'Signed in successfully!', 'success');
     setTimeout(() => {
       onLoginSuccess({
         phone: phone.trim(),
@@ -50,7 +80,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
   };
 
   return (
-    <div className={`fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-hidden overscroll-none select-none z-50 transition-colors duration-200 ${
+    <div className={`fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-y-auto select-none z-50 transition-colors duration-200 ${
       darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
     }`}>
       {/* Centered Phone Column */}
@@ -84,15 +114,23 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
         </div>
 
         {/* Feedback Toast */}
-        {toastMessage && (
+        {toast && (
           <div className="mb-3 animate-scale-in">
             <div className={`text-xs py-2 px-3.5 rounded-xl flex items-center space-x-2 font-medium border ${
-              darkMode 
-                ? 'bg-emerald-950/80 border-emerald-700/60 text-emerald-200' 
-                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              toast.type === 'error'
+                ? darkMode
+                  ? 'bg-rose-950/80 border-rose-700/60 text-rose-200'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+                : darkMode 
+                  ? 'bg-emerald-950/80 border-emerald-700/60 text-emerald-200' 
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
             }`}>
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-              <span>{toastMessage}</span>
+              {toast.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 stroke-[2]" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 stroke-[2]" />
+              )}
+              <span>{toast.message}</span>
             </div>
           </div>
         )}
@@ -118,7 +156,10 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
         }`}>
           <button
             type="button"
-            onClick={() => setIsSignUp(false)}
+            onClick={() => {
+              setIsSignUp(false);
+              setConfirmPin('');
+            }}
             className={`flex-1 py-2.5 rounded-xl font-bold text-[13px] text-center transition-all cursor-pointer ${
               !isSignUp 
                 ? 'bg-[#00A843] text-white shadow-xs' 
@@ -129,7 +170,10 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setIsSignUp(true)}
+            onClick={() => {
+              setIsSignUp(true);
+              setConfirmPin('');
+            }}
             className={`flex-1 py-2.5 rounded-xl font-semibold text-[13px] text-center transition-all cursor-pointer ${
               isSignUp 
                 ? 'bg-[#00A843] text-white shadow-xs font-bold' 
@@ -224,6 +268,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                   type="button"
                   onClick={() => setShowPin(!showPin)}
                   className="text-slate-400 hover:text-slate-600 focus:outline-none ml-2 cursor-pointer"
+                  title={showPin ? 'Hide PIN' : 'Show PIN'}
                 >
                   {showPin ? (
                     <EyeOff className="w-4 h-4 stroke-[1.8]" />
@@ -233,6 +278,59 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Confirm PIN Field (Under PIN when Create Account is active) */}
+            {isSignUp && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`block text-[13px] font-semibold transition-colors ${
+                    darkMode ? 'text-slate-200' : 'text-slate-700'
+                  }`}>
+                    Confirm PIN
+                  </label>
+                  {confirmPin.length > 0 && (
+                    <span className={`text-[11px] font-medium transition-colors ${
+                      pin === confirmPin 
+                        ? 'text-emerald-500' 
+                        : 'text-rose-500'
+                    }`}>
+                      {pin === confirmPin ? '✓ PINs match' : 'PINs do not match'}
+                    </span>
+                  )}
+                </div>
+                <div className={`flex items-center rounded-xl border px-3.5 py-3 transition-colors ${
+                  confirmPin.length > 0 && pin !== confirmPin
+                    ? (darkMode ? 'border-rose-500/70 bg-[#101927]' : 'border-rose-300 bg-rose-50/20')
+                    : confirmPin.length > 0 && pin === confirmPin
+                    ? (darkMode ? 'border-emerald-500/70 bg-[#101927]' : 'border-emerald-300 bg-emerald-50/20')
+                    : (darkMode ? 'border-slate-700 bg-[#101927] focus-within:border-[#00A843]' : 'border-slate-200 bg-white focus-within:border-[#00A843]')
+                }`}>
+                  <Lock className="w-4 h-4 text-slate-400 mr-2.5 flex-shrink-0 stroke-[1.8]" />
+                  <input
+                    type={showConfirmPin ? 'text' : 'password'}
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value)}
+                    placeholder="Confirm your 4-digit PIN"
+                    maxLength={6}
+                    className={`w-full text-sm outline-none bg-transparent ${
+                      darkMode ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPin(!showConfirmPin)}
+                    className="text-slate-400 hover:text-slate-600 focus:outline-none ml-2 cursor-pointer"
+                    title={showConfirmPin ? 'Hide PIN' : 'Show PIN'}
+                  >
+                    {showConfirmPin ? (
+                      <EyeOff className="w-4 h-4 stroke-[1.8]" />
+                    ) : (
+                      <Eye className="w-4 h-4 stroke-[1.8]" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 4. Action Button: Sign In / Create Account */}
