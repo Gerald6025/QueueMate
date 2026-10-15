@@ -102,6 +102,17 @@ create policy "Allow public read access to customers"
 create policy "Allow public insert/update to customers"
   on public.customers for all using (true) with check (true);
 
+-- Grant permissions to API roles
+grant all on public.businesses to anon, authenticated, service_role;
+grant all on public.staff to anon, authenticated, service_role;
+grant all on public.tickets to anon, authenticated, service_role;
+grant all on public.customers to anon, authenticated, service_role;
+
+-- Enable Realtime for live queue synchronization
+alter publication supabase_realtime add table public.tickets;
+alter publication supabase_realtime add table public.businesses;
+alter publication supabase_realtime add table public.staff;
+
 -- Insert Default Demo Businesses
 insert into public.businesses (id, name, industry, description, full_description, email, working_hours, queue_window, opens_at, closes_at, queue_opens, queue_closes, daily_capacity, status, icon)
 values
@@ -124,4 +135,5 @@ insert into public.customers (id, name, phone, pin)
 values
   ('cust-1', 'Gerry', '+1 234 567 8900', '1234')
 on conflict (phone) do nothing;
+
 
