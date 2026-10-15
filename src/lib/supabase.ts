@@ -1,8 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { Business, StaffMember, Ticket } from '@/types/queue';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  'https://mtwunmiehjbsbthvbezw.supabase.co';
+
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10d3VubWllaGpic2J0aHZiZXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyNjE0MzUsImV4cCI6MjEwNDgzNzQzNX0.DZNx5wzOX-Btyom2gA13sOk22uWm7RqYUq4KnaTE2tg';
 
 export const isSupabaseConfigured = (): boolean => {
   return (
@@ -18,6 +24,7 @@ export const isSupabaseConfigured = (): boolean => {
 export const supabase = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
 
 // ==========================================
 // BUSINESSES API

@@ -342,30 +342,66 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             getTicketsFromDB(),
           ]);
 
-          if (dbBusinesses && dbBusinesses.length > 0) setBusinesses(dbBusinesses);
+          if (dbBusinesses && dbBusinesses.length > 0) {
+            setBusinesses(dbBusinesses);
+            // If local storage has any custom registered business not yet in Supabase, sync it now
+            try {
+              const saved = localStorage.getItem('queuemate_businesses');
+              if (saved) {
+                const localList: Business[] = JSON.parse(saved);
+                const missing = localList.filter(
+                  (lb) =>
+                    !dbBusinesses.some((db) => db.id === lb.id) &&
+                    !['city-bank', 'health-plus', 'tech-mart'].includes(lb.id)
+                );
+                for (const m of missing) {
+                  await saveBusinessToDB(m);
+                }
+              }
+            } catch {}
+          }
           if (dbStaff && dbStaff.length > 0) setStaffMembers(dbStaff);
-          if (dbTickets && dbTickets.length > 0) setTickets(dbTickets);
+          if (dbTickets) setTickets(dbTickets);
         } catch (err) {
           console.warn('Supabase fetch failed on mount:', err);
         }
       })();
     }
 
-    // 3. Setup real-time updates from Supabase + 3.5s periodic polling fallback
+
+    // 3. Setup real-time updates from Supabase + periodic polling fallback
     let intervalId: NodeJS.Timeout | null = null;
     let channel: any = null;
 
     if (isSupabaseConfigured() && supabase) {
       try {
         channel = supabase
-          .channel('realtime_tickets_stream')
+          .channel('realtime_all_entities')
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'tickets' },
             async () => {
               const freshTickets = await getTicketsFromDB();
-              if (freshTickets && freshTickets.length > 0) {
-                setTickets(freshTickets);
+              if (freshTickets) setTickets(freshTickets);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'businesses' },
+            async () => {
+              const freshBusinesses = await getBusinessesFromDB();
+              if (freshBusinesses && freshBusinesses.length > 0) {
+                setBusinesses(freshBusinesses);
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'staff' },
+            async () => {
+              const freshStaff = await getStaffFromDB();
+              if (freshStaff && freshStaff.length > 0) {
+                setStaffMembers(freshStaff);
               }
             }
           )
@@ -374,15 +410,27 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.warn('Supabase realtime subscription error:', err);
       }
 
+      // 3.5s periodic polling fallback ensures all devices stay in sync
       intervalId = setInterval(async () => {
         try {
-          const freshTickets = await getTicketsFromDB();
-          if (freshTickets && freshTickets.length > 0) {
+          const [freshBusinesses, freshStaff, freshTickets] = await Promise.all([
+            getBusinessesFromDB(),
+            getStaffFromDB(),
+            getTicketsFromDB(),
+          ]);
+          if (freshBusinesses && freshBusinesses.length > 0) {
+            setBusinesses(freshBusinesses);
+          }
+          if (freshStaff && freshStaff.length > 0) {
+            setStaffMembers(freshStaff);
+          }
+          if (freshTickets) {
             setTickets(freshTickets);
           }
         } catch {}
       }, 3500);
     }
+
 
     // 4. Cross-tab synchronization via storage events (same browser / device)
     const handleStorage = (e: StorageEvent) => {
@@ -484,23 +532,33 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setStaffMembers((prev) => [initialStaff, ...prev]);
 
     // Save to Supabase
-    saveBusinessToDB(newBusiness);
-    saveStaffMemberToDB(initialStaff);
+    try {
+      await Promise.all([
+        saveBusinessToDB(newBusiness),
+        saveStaffMemberToDB(initialStaff),
+      ]);
+    } catch (e) {
+      console.warn('Error saving business/staff to Supabase:', e);
+    }
 
     return newBusiness;
   };
 
   const updateBusiness = async (id: string, updates: Partial<Business>) => {
+    let updatedBusiness: Business | null = null;
     setBusinesses((prev) =>
       prev.map((b) => {
         if (b.id === id) {
           const updated = { ...b, ...updates };
-          saveBusinessToDB(updated);
+          updatedBusiness = updated;
           return updated;
         }
         return b;
       })
     );
+    if (updatedBusiness) {
+      await saveBusinessToDB(updatedBusiness);
+    }
   };
 
   const deleteBusiness = async (id: string) => {
@@ -508,7 +566,7 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setStaffMembers((prev) => prev.filter((s) => s.businessId !== id));
     setTickets((prev) => prev.filter((t) => t.businessId !== id));
 
-    deleteBusinessFromDB(id);
+    await deleteBusinessFromDB(id);
   };
 
   // ========================================================
@@ -522,27 +580,32 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setStaffMembers((prev) => [newStaff, ...prev]);
-    saveStaffMemberToDB(newStaff);
+    await saveStaffMemberToDB(newStaff);
     return newStaff;
   };
 
   const updateStaffMember = async (id: string, updates: Partial<StaffMember>) => {
+    let updatedStaff: StaffMember | null = null;
     setStaffMembers((prev) =>
       prev.map((s) => {
         if (s.id === id) {
           const updated = { ...s, ...updates };
-          saveStaffMemberToDB(updated);
+          updatedStaff = updated;
           return updated;
         }
         return s;
       })
     );
+    if (updatedStaff) {
+      await saveStaffMemberToDB(updatedStaff);
+    }
   };
 
   const deleteStaffMember = async (id: string) => {
     setStaffMembers((prev) => prev.filter((s) => s.id !== id));
-    deleteStaffFromDB(id);
+    await deleteStaffFromDB(id);
   };
+
 
   // ========================================================
   // TICKET & QUEUE OPERATIONS
