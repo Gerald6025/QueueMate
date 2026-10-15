@@ -68,10 +68,22 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
     setDarkMode
   } = useQueue();
 
-  // Find business details
-  const currentBiz = businesses.find(
-    (b) => b.name.toLowerCase() === companyName.toLowerCase() || b.id === companyName.toLowerCase()
-  ) || businesses[0];
+  // Find business details (safe fallback to companyName instead of generic first business)
+  const currentBiz: Business =
+    businesses.find(
+      (b) =>
+        b.name.toLowerCase() === companyName.toLowerCase() ||
+        b.id === companyName.toLowerCase()
+    ) || {
+      id: companyName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+      name: companyName,
+      industry: 'General',
+      description: '',
+      dailyCapacity: '100',
+      status: 'Open' as const,
+      workingHours: '08:00 – 17:00',
+      queueWindow: '08:00 – 16:30',
+    };
 
   // Selected Counter
   const initialCounter = counters.find((c) => c.name.toLowerCase() === initialCounterName.toLowerCase()) || counters[0];
@@ -83,9 +95,16 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
   const [quickVerifyCode, setQuickVerifyCode] = useState('');
   const [quickVerifyToast, setQuickVerifyToast] = useState<{ message: string; success: boolean } | null>(null);
 
-  // Active counter & active ticket
+  // Active counter & active ticket (find by currentTicketId or currently called/serving for this counter)
   const activeCounter = counters.find((c) => c.id === selectedCounterId) || counters[0];
-  const currentTicket = tickets.find((t) => t.id === activeCounter.currentTicketId);
+  const currentTicket =
+    tickets.find((t) => t.id === activeCounter.currentTicketId) ||
+    tickets.find(
+      (t) =>
+        (t.status === 'called' || t.status === 'serving') &&
+        (t.businessId === currentBiz.id || t.businessName?.toLowerCase() === currentBiz.name.toLowerCase()) &&
+        (t.counterId === activeCounter.id || t.counterName === activeCounter.name)
+    );
 
   // Service timer for active customer
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -113,17 +132,30 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
   // Filtered tickets waiting for this facility
   const companyTickets = tickets.filter(
-    (t) => !currentBiz || t.businessId === currentBiz.id || t.businessName === currentBiz.name
+    (t) =>
+      t.businessId === currentBiz.id ||
+      t.businessName?.toLowerCase() === currentBiz.name.toLowerCase()
   );
 
   // Waiting tickets eligible for this counter
-  const waitingForCounter = companyTickets.filter(
-    (t) => t.status === 'waiting' && activeCounter.assignedCategories.includes(t.categoryId)
-  ).sort((a, b) => {
-    if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
-    if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
-    return a.createdAt - b.createdAt;
-  });
+  const waitingForCounter = companyTickets
+    .filter((t) => {
+      if (t.status !== 'waiting') return false;
+      // If counter was explicitly set up for this business with restricted categories, check them
+      if (
+        activeCounter.businessId === currentBiz.id &&
+        activeCounter.assignedCategories &&
+        activeCounter.assignedCategories.length > 0
+      ) {
+        return activeCounter.assignedCategories.includes(t.categoryId);
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
+      if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
+      return a.createdAt - b.createdAt;
+    });
 
   // Display queue based on tab
   const displayedWaitingTickets = (queueFilter === 'my-counter' ? waitingForCounter : companyTickets.filter((t) => t.status === 'waiting'))
@@ -143,12 +175,12 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
   const handleCallNext = () => {
     if (isOnBreak) return;
-    callNextTicket(activeCounter.id);
+    callNextTicket(activeCounter.id, currentBiz.id, activeCounter.name);
   };
 
   const handleComplete = () => {
     if (!currentTicket) return;
-    completeTicket(activeCounter.id);
+    completeTicket(activeCounter.id, currentTicket.id);
     confetti({
       particleCount: 40,
       spread: 55,
@@ -156,6 +188,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
       colors: ['#00A843', '#10b981', '#3b82f6'],
     });
   };
+
 
   const handleQuickVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,7 +535,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {/* 1. Recall Ticket / Chime */}
                 <button
-                  onClick={() => recallTicket(activeCounter.id)}
+                  onClick={() => recallTicket(activeCounter.id, currentTicket.id)}
                   className="py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-sm active:scale-95"
                 >
                   <Megaphone className="w-4 h-4 text-sky-400" />
@@ -512,7 +545,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                 {/* 2. Start Serving (if called) */}
                 {currentTicket.status === 'called' ? (
                   <button
-                    onClick={() => startServing(activeCounter.id)}
+                    onClick={() => startServing(activeCounter.id, currentTicket.id)}
                     className="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-blue-600/20 active:scale-95"
                   >
                     <Play className="w-4 h-4" />
@@ -539,7 +572,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
                 {/* 4. Mark No Show */}
                 <button
-                  onClick={() => markNoShow(activeCounter.id)}
+                  onClick={() => markNoShow(activeCounter.id, currentTicket.id)}
                   className="py-3 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs sm:text-sm font-semibold flex items-center justify-center space-x-2 transition-all cursor-pointer active:scale-95"
                 >
                   <UserX className="w-4 h-4" />
@@ -800,7 +833,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                     <button
                       onClick={() => {
                         // Call this specific ticket immediately to active counter
-                        callNextTicket(activeCounter.id);
+                        callNextTicket(activeCounter.id, currentBiz.id, activeCounter.name, t.id);
                       }}
                       className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 shadow-xs"
                     >

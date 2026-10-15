@@ -36,11 +36,17 @@ interface QueueContextType {
     businessName?: string
   ) => Ticket;
   deleteTicket: (ticketId: string) => Promise<void>;
-  callNextTicket: (counterId: number) => Ticket | null;
-  recallTicket: (counterId: number) => void;
-  startServing: (counterId: number) => void;
-  completeTicket: (counterId: number) => void;
-  markNoShow: (counterId: number) => void;
+  callNextTicket: (
+    counterId: number,
+    businessId?: string,
+    counterName?: string,
+    specificTicketId?: string
+  ) => Ticket | null;
+
+  recallTicket: (counterId: number, ticketId?: string) => void;
+  startServing: (counterId: number, ticketId?: string) => void;
+  completeTicket: (counterId: number, ticketId?: string) => void;
+  markNoShow: (counterId: number, ticketId?: string) => void;
   resetQueues: () => void;
   seedDemoTickets: () => void;
   cancelCustomerTicket: (ticketId: string) => void;
@@ -736,32 +742,68 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   };
 
-  const callNextTicket = (counterId: number): Ticket | null => {
+  const callNextTicket = (
+    counterId: number,
+    businessId?: string,
+    customCounterName?: string,
+    specificTicketId?: string
+  ): Ticket | null => {
     const counter = counters.find((c) => c.id === counterId);
-    if (!counter) return null;
+    const counterName = customCounterName || counter?.name || `Counter ${counterId}`;
+    const targetBusinessId = businessId || counter?.businessId;
 
-    const eligibleTickets = tickets.filter(
-      (t) =>
-        t.status === 'waiting' &&
-        counter.assignedCategories.includes(t.categoryId) &&
-        (!counter.businessId || !t.businessId || t.businessId === counter.businessId)
-    );
+    let ticketToCall: Ticket | undefined;
 
-    if (eligibleTickets.length === 0) return null;
+    if (specificTicketId) {
+      ticketToCall = tickets.find((t) => t.id === specificTicketId);
+    }
 
-    eligibleTickets.sort((a, b) => {
-      if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
-      if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
-      return a.createdAt - b.createdAt;
-    });
+    if (!ticketToCall) {
+      const eligibleTickets = tickets.filter((t) => {
+        if (t.status !== 'waiting') return false;
 
-    const ticketToCall = eligibleTickets[0];
+        // Filter by business if available
+        if (targetBusinessId) {
+          const matchesBiz =
+            t.businessId === targetBusinessId ||
+            t.businessName?.toLowerCase() === targetBusinessId.toLowerCase();
+          if (!matchesBiz) return false;
+        }
+
+        // Check category restrictions only if this counter was specifically configured for this business
+        if (
+          counter &&
+          counter.businessId === targetBusinessId &&
+          counter.assignedCategories &&
+          counter.assignedCategories.length > 0
+        ) {
+          if (!counter.assignedCategories.includes(t.categoryId)) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      if (eligibleTickets.length === 0) return null;
+
+      eligibleTickets.sort((a, b) => {
+        if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
+        if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
+        return a.createdAt - b.createdAt;
+      });
+
+      ticketToCall = eligibleTickets[0];
+    }
+
+    if (!ticketToCall) return null;
+
 
     const updatedTicket: Ticket = {
       ...ticketToCall,
       status: 'called',
-      counterId: counter.id,
-      counterName: counter.name,
+      counterId,
+      counterName,
       calledAt: Date.now(),
     };
 
@@ -773,6 +815,8 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         c.id === counterId
           ? {
               ...c,
+              name: counterName,
+              businessId: targetBusinessId || c.businessId,
               status: 'calling',
               currentTicketId: ticketToCall.id,
             }
@@ -783,33 +827,36 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLastCalledTicket(updatedTicket);
 
     if (soundEnabled) {
-      AudioService.announceCall(updatedTicket.number, counter.name);
+      AudioService.announceCall(updatedTicket.number, counterName);
     }
 
     return updatedTicket;
   };
 
-  const recallTicket = (counterId: number) => {
+  const recallTicket = (counterId: number, ticketId?: string) => {
     const counter = counters.find((c) => c.id === counterId);
-    if (!counter || !counter.currentTicketId) return;
+    const targetTicketId = ticketId || counter?.currentTicketId;
+    if (!targetTicketId) return;
 
-    const currentTicket = tickets.find((t) => t.id === counter.currentTicketId);
+    const currentTicket = tickets.find((t) => t.id === targetTicketId);
     if (!currentTicket) return;
 
+    const counterName = counter?.name || `Counter ${counterId}`;
     setLastCalledTicket({ ...currentTicket, calledAt: Date.now() });
 
     if (soundEnabled) {
-      AudioService.announceCall(currentTicket.number, counter.name);
+      AudioService.announceCall(currentTicket.number, counterName);
     }
   };
 
-  const startServing = (counterId: number) => {
+  const startServing = (counterId: number, ticketId?: string) => {
     const counter = counters.find((c) => c.id === counterId);
-    if (!counter || !counter.currentTicketId) return;
+    const targetTicketId = ticketId || counter?.currentTicketId;
+    if (!targetTicketId) return;
 
     setTickets((prev) =>
       prev.map((t) => {
-        if (t.id === counter.currentTicketId) {
+        if (t.id === targetTicketId) {
           const updated: Ticket = { ...t, status: 'serving' };
           saveTicketToDB(updated);
           return updated;
@@ -823,13 +870,14 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   };
 
-  const completeTicket = (counterId: number) => {
+  const completeTicket = (counterId: number, ticketId?: string) => {
     const counter = counters.find((c) => c.id === counterId);
-    if (!counter || !counter.currentTicketId) return;
+    const targetTicketId = ticketId || counter?.currentTicketId;
+    if (!targetTicketId) return;
 
     setTickets((prev) =>
       prev.map((t) => {
-        if (t.id === counter.currentTicketId) {
+        if (t.id === targetTicketId) {
           const updated: Ticket = { ...t, status: 'completed', completedAt: Date.now() };
           saveTicketToDB(updated);
           return updated;
@@ -845,20 +893,21 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               ...c,
               status: 'idle',
               currentTicketId: undefined,
-              servedCount: c.servedCount + 1,
+              servedCount: (c.servedCount || 0) + 1,
             }
           : c
       )
     );
   };
 
-  const markNoShow = (counterId: number) => {
+  const markNoShow = (counterId: number, ticketId?: string) => {
     const counter = counters.find((c) => c.id === counterId);
-    if (!counter || !counter.currentTicketId) return;
+    const targetTicketId = ticketId || counter?.currentTicketId;
+    if (!targetTicketId) return;
 
     setTickets((prev) =>
       prev.map((t) => {
-        if (t.id === counter.currentTicketId) {
+        if (t.id === targetTicketId) {
           const updated: Ticket = { ...t, status: 'noshow', completedAt: Date.now() };
           saveTicketToDB(updated);
           return updated;
