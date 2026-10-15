@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { QueueProvider } from '@/context/QueueContext';
 import { OnboardingScreen } from '@/components/OnboardingScreen';
 import { CustomerKiosk } from '@/components/CustomerKiosk';
-import { StaffCounter } from '@/components/StaffCounter';
+import { StaffDashboardView } from '@/components/StaffDashboardView';
 import { PublicDisplayBoard } from '@/components/PublicDisplayBoard';
 import { AnalyticsDashboard } from '@/components/AnalyticsDashboard';
 import { 
@@ -114,7 +114,14 @@ function MainQueueApp() {
 
           {/* Operational View */}
           <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
-            {currentTab === 'staff' && <StaffCounter />}
+            {currentTab === 'staff' && (
+              <div className="w-full">
+                <StaffDashboardView
+                  onSignOut={() => setCurrentTab('onboarding')}
+                  onSwitchRole={handleSwitchRole}
+                />
+              </div>
+            )}
             {currentTab === 'display' && <PublicDisplayBoard />}
             {currentTab === 'analytics' && <AnalyticsDashboard />}
           </div>

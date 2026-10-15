@@ -21,7 +21,7 @@ import {
   Layers,
   ChevronRight,
   ChevronDown,
-  QrCode,
+  Ticket as TicketIcon,
   ArrowLeft,
   TrendingUp,
   Mail,
@@ -67,7 +67,7 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
     recallTicket 
   } = useQueue();
 
-  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   // Top navigation sub-tabs: Home (matches screenshot default), Overview, Queue, Staff, Settings
   const [activeSubTab, setActiveSubTab] = useState<'home' | 'overview' | 'queue' | 'staff' | 'settings'>('home');
@@ -78,7 +78,9 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('Counter Staff');
   const [newStaffCounter, setNewStaffCounter] = useState('Counter 1');
+  const [newStaffPin, setNewStaffPin] = useState('1234');
 
   // Editable Company Settings (Matches user screenshot)
   const [compName, setCompName] = useState(companyName);
@@ -484,11 +486,11 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                       </div>
 
                       <button
-                        onClick={() => setShowQRScanner(true)}
+                        onClick={() => setShowTicketModal(true)}
                         className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors cursor-pointer"
-                        title="Scan customer QR code"
+                        title="Verify customer ticket"
                       >
-                        <QrCode className="w-4 h-4" />
+                        <TicketIcon className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -769,11 +771,12 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
 
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => setShowQRScanner(true)}
+                        onClick={() => setShowTicketModal(true)}
                         className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        title="Verify customer arrival ticket"
                       >
-                        <QrCode className="w-3.5 h-3.5" />
-                        <span>Scan QR</span>
+                        <TicketIcon className="w-3.5 h-3.5" />
+                        <span>Verify Ticket</span>
                       </button>
                       <button
                         onClick={onSignOut}
@@ -1391,6 +1394,9 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newStaffName.trim()) return;
+                if (!newStaffPin.trim() || newStaffPin.length < 4) {
+                  return;
+                }
                 if (currentBiz) {
                   await addStaffMember({
                     businessId: currentBiz.id,
@@ -1398,13 +1404,15 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                     name: newStaffName.trim(),
                     email: newStaffEmail.trim() || `${newStaffName.toLowerCase().replace(/\s+/g, '.')}@${currentBiz.id}.com`,
                     counterName: newStaffCounter,
-                    role: 'Counter Staff',
-                    staffPin: '1234',
+                    role: newStaffRole.trim() || 'Counter Staff',
+                    staffPin: newStaffPin.trim(),
                     active: true,
                   });
                 }
                 setNewStaffName('');
                 setNewStaffEmail('');
+                setNewStaffRole('Counter Staff');
+                setNewStaffPin('1234');
                 setShowAddStaffModal(false);
               }}
               className="space-y-3.5"
@@ -1437,6 +1445,19 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Role / Position</label>
+                <input
+                  type="text"
+                  value={newStaffRole}
+                  onChange={(e) => setNewStaffRole(e.target.value)}
+                  placeholder="e.g. Senior Teller, Nurse, Tech Specialist"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
+                    darkMode ? 'bg-[#101927] border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Assigned Counter</label>
                 <select
                   value={newStaffCounter}
@@ -1452,6 +1473,24 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                 </select>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Security PIN (4–8 digits)</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={8}
+                  minLength={4}
+                  pattern="[0-9]{4,8}"
+                  value={newStaffPin}
+                  onChange={(e) => setNewStaffPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="e.g. 1234"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none font-mono tracking-widest ${
+                    darkMode ? 'bg-[#101927] border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+                <p className="text-[10.5px] text-slate-400 mt-1">Staff will use this PIN to log in on their device</p>
+              </div>
+
               <button
                 type="submit"
                 className="w-full bg-[#00A843] hover:bg-[#00963c] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2 cursor-pointer"
@@ -1463,11 +1502,11 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
         </div>
       )}
 
-      {/* QR Scanner Modal for verifying arriving customers */}
-      {showQRScanner && (
+      {/* Ticket Verification Modal for verifying arriving customers */}
+      {showTicketModal && (
         <QRScannerModal
           business={currentBiz}
-          onClose={() => setShowQRScanner(false)}
+          onClose={() => setShowTicketModal(false)}
         />
       )}
 

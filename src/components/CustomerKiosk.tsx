@@ -14,7 +14,6 @@ import {
   Volume2,
   Printer,
   Trash2,
-  QrCode,
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
@@ -32,8 +31,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Business } from '@/types/queue';
 import { checkQueueEligibility } from '@/utils/businessHours';
-import { TicketQRCode } from './TicketQRCode';
-import { downloadTicketQR } from '@/utils/ticketDownload';
+import { TicketCard } from './TicketQRCode';
 import { ProfileView } from './ProfileView';
 import { SettingsView } from './SettingsView';
 import { AboutView } from './AboutView';
@@ -172,8 +170,6 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
   const [name, setName] = useState('Gerry');
   const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDownloadingQR, setIsDownloadingQR] = useState(false);
-  const [qrDownloaded, setQrDownloaded] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -618,11 +614,11 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                 {currentCustomerTicket && 
                  currentCustomerTicket.status !== 'completed' && 
                  (currentCustomerTicket.businessId === selectedCompany.id || currentCustomerTicket.businessName === selectedCompany.name)
-                  ? 'Your Queue Ticket & QR Code'
+                  ? 'Your Queue Ticket'
                   : 'Your Details'}
               </h3>
 
-              {/* Active Ticket & Scannable QR Code for THIS company */}
+              {/* Active Ticket for THIS company */}
               {currentCustomerTicket && 
                currentCustomerTicket.status !== 'completed' && 
                (currentCustomerTicket.businessId === selectedCompany.id || currentCustomerTicket.businessName === selectedCompany.name) ? (
@@ -638,68 +634,25 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                     </span>
                   </div>
 
-                  <div className="mb-2">
-                    <span className="text-3xl font-mono font-extrabold text-emerald-500 tracking-tight">
-                      {currentCustomerTicket.number}
-                    </span>
-                    <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                      {currentCustomerTicket.customerName} • {currentCustomerTicket.categoryName}
-                    </p>
-                  </div>
-
-                  {/* Scannable QR Code */}
-                  <div className="my-3">
-                    <TicketQRCode ticket={currentCustomerTicket} size={160} showDetails={true} />
+                  {/* Clean Digital Ticket Card */}
+                  <div className="my-2">
+                    <TicketCard ticket={currentCustomerTicket} size={160} showDetails={true} />
                   </div>
 
                   <div className="flex items-center space-x-2 mt-4 pt-3 border-t border-emerald-500/20">
                     <button
-                      onClick={async () => {
-                        if (!currentCustomerTicket) return;
-                        setIsDownloadingQR(true);
-                        try {
-                          await downloadTicketQR(currentCustomerTicket, 'pass');
-                          setQrDownloaded(true);
-                          setTimeout(() => setQrDownloaded(false), 2500);
-                        } catch (err) {
-                          console.error(err);
-                        } finally {
-                          setIsDownloadingQR(false);
-                        }
-                      }}
-                      disabled={isDownloadingQR}
-                      className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm transition-all"
-                    >
-                      {qrDownloaded ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-white" />
-                          <span>Saved!</span>
-                        </>
-                      ) : isDownloadingQR ? (
-                        <>
-                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>Saving...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Save QR</span>
-                        </>
-                      )}
-                    </button>
-                    <button
                       onClick={handlePrint}
-                      className="flex-1 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer hover:bg-slate-800"
+                      className="flex-1 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold flex items-center justify-center space-x-1.5 cursor-pointer hover:bg-slate-800 shadow-xs"
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>Print</span>
+                      <span>Print Ticket</span>
                     </button>
                     <button
                       onClick={() => cancelCustomerTicket(currentCustomerTicket.id)}
                       className="flex-1 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Cancel</span>
+                      <span>Cancel Ticket</span>
                     </button>
                   </div>
                 </div>
@@ -767,7 +720,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                       }`}
                     >
                       <TicketIcon className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Joining Queue...' : 'Join Queue & Get QR Ticket'}</span>
+                      <span>{isSubmitting ? 'Joining Queue...' : 'Join Queue & Get Ticket'}</span>
                     </button>
                   )}
                 </>

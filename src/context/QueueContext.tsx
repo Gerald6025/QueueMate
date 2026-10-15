@@ -53,6 +53,10 @@ interface QueueContextType {
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>;
   updateStaffMember: (id: string, updates: Partial<StaffMember>) => Promise<void>;
   deleteStaffMember: (id: string) => Promise<void>;
+  verifyTicket: (
+    ticketIdOrNumber: string,
+    businessId?: string
+  ) => Promise<{ success: boolean; message: string; ticket?: Ticket }>;
   scanTicket: (
     qrOrTicketId: string, 
     businessId?: string
@@ -899,6 +903,7 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateStaffMember,
         deleteStaffMember,
         scanTicket,
+        verifyTicket: scanTicket,
       }}
     >
       {children}

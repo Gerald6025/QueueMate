@@ -160,7 +160,7 @@ export const CompanyPortal: React.FC<CompanyPortalProps> = ({
   }
 
   return (
-    <div className={`w-full min-h-screen flex flex-col justify-between select-none transition-colors duration-200 ${
+    <div className={`w-full h-[100dvh] max-h-[100dvh] flex flex-col select-none transition-colors duration-200 ${
       darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
     }`}>
       {/* Scrollable Container */}

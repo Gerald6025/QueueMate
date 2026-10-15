@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ChevronRight,
   ChevronLeft,
+  ArrowLeft,
   Bell,
   Clock,
   Check,
@@ -284,6 +285,16 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     }
   };
 
+  const handleRoleSelectionBack = () => {
+    if (initialStep === 4) {
+      onComplete('kiosk');
+    } else if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    } else {
+      setCurrentStep(0);
+    }
+  };
+
   const handleSkip = () => {
     if (currentStep < 4) {
       setCurrentStep(4);
@@ -332,11 +343,28 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({
     }
 
     return (
-      <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-y-auto flex flex-col justify-center items-center select-none relative transition-colors duration-200 p-4 sm:p-6 ${
+      <div className={`w-full h-[100dvh] max-h-[100dvh] overflow-y-auto flex flex-col justify-between items-center select-none relative transition-colors duration-200 p-4 sm:p-6 ${
         darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
       }`}>
+        {/* Top Header: Back Arrow Button */}
+        <div className="w-full max-w-sm mx-auto pt-1 flex items-center justify-start z-10 flex-shrink-0">
+          <button
+            type="button"
+            onClick={handleRoleSelectionBack}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+              darkMode
+                ? 'bg-[#182335] text-slate-300 hover:text-white border border-slate-700/60'
+                : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200/80 shadow-2xs'
+            }`}
+            title="Go back"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-4 h-4 stroke-[2.2]" />
+          </button>
+        </div>
+
         {/* Center Content: Logo, Title, Subtitle, 3 Role Cards */}
-        <div className="w-full max-w-sm mx-auto flex flex-col items-center justify-center animate-scale-in my-auto">
+        <div className="w-full max-w-sm mx-auto flex flex-col items-center justify-center animate-scale-in my-auto py-2">
           {/* Logo: Green Squircle with bold white "Q" */}
           <div className="w-14 h-14 rounded-2xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3.5">
             <span className="text-white font-extrabold text-[30px] leading-none select-none font-sans">
