@@ -31,7 +31,7 @@ function MainQueueApp() {
   };
 
   return (
-    <div className={`w-full ${currentTab === 'onboarding' || currentTab === 'kiosk' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'} selection:bg-emerald-500 selection:text-white`}>
+    <div className={`w-full ${currentTab === 'onboarding' || currentTab === 'kiosk' || currentTab === 'staff' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'} selection:bg-emerald-500 selection:text-white`}>
       {/* 1. ONBOARDING & ROLE SELECTOR SCREENS */}
       {currentTab === 'onboarding' && (
         <OnboardingScreen 
@@ -54,9 +54,9 @@ function MainQueueApp() {
 
       {/* 3. STAFF & OPERATIONAL TERMINALS (Staff Console, Public TV, Analytics) */}
       {currentTab !== 'onboarding' && currentTab !== 'kiosk' && (
-        <div className="w-full min-h-screen bg-slate-950 text-white flex flex-col">
+        <div className={`w-full ${currentTab === 'staff' ? 'h-[100dvh] max-h-[100dvh] overflow-hidden' : 'min-h-screen'} bg-slate-950 text-white flex flex-col`}>
           {/* Operational Header */}
-          <div className="w-full bg-slate-900/90 border-b border-slate-800 py-2.5 px-4 flex items-center justify-between sticky top-0 z-40">
+          <div className="w-full bg-slate-900/90 border-b border-slate-800 py-2.5 px-4 flex items-center justify-between sticky top-0 z-40 flex-shrink-0">
             <button
               onClick={handleSwitchRole}
               className="text-xs font-semibold text-slate-400 hover:text-white flex items-center space-x-1.5 transition-colors cursor-pointer"
@@ -113,9 +113,9 @@ function MainQueueApp() {
           </div>
 
           {/* Operational View */}
-          <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
+          <div className={`flex-1 ${currentTab === 'staff' ? 'min-h-0 overflow-hidden flex flex-col' : 'flex items-center justify-center p-4 sm:p-8'}`}>
             {currentTab === 'staff' && (
-              <div className="w-full">
+              <div className="w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden">
                 <StaffDashboardView
                   onSignOut={() => setCurrentTab('onboarding')}
                   onSwitchRole={handleSwitchRole}

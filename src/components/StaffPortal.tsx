@@ -161,13 +161,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
   // ─── Shared page wrapper ──────────────────────────────────────────────────────
   const card = (content: React.ReactNode) => (
     <div
-      className={`w-full h-[100dvh] max-h-[100dvh] flex flex-col select-none transition-colors duration-200 ${
+      className={`w-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col select-none transition-colors duration-200 ${
         darkMode ? 'bg-[#101927]' : 'bg-[#F4FAF6]'
       }`}
     >
-      <div className="w-full max-w-sm mx-auto flex-1 px-4 pt-6 pb-8 overflow-y-auto animate-scale-in">
-        {/* Top Bar */}
-        <div className="flex items-center space-x-3 mb-6">
+      {/* Top Header Bar */}
+      <div className="w-full max-w-sm mx-auto px-4 pt-6 pb-3 flex-shrink-0 z-10">
+        <div className="flex items-center space-x-3">
           <button
             onClick={goBack}
             className={`w-9 h-9 rounded-full border flex items-center justify-center shadow-2xs transition-colors cursor-pointer ${
@@ -191,7 +191,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
             </h1>
           </div>
         </div>
+      </div>
 
+      {/* Center Content: Scrollable */}
+      <div className="w-full max-w-sm mx-auto flex-1 min-h-0 px-4 pt-1 pb-8 overflow-y-auto overscroll-contain animate-scale-in">
         {content}
       </div>
     </div>

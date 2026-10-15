@@ -215,7 +215,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
   return (
     <div
-      className={`w-full min-h-screen flex flex-col transition-colors duration-200 select-none ${
+      className={`w-full h-full h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col transition-colors duration-200 select-none ${
         darkMode ? 'bg-[#0f172a] text-slate-100' : 'bg-[#F4FAF6] text-slate-900'
       }`}
     >
@@ -223,7 +223,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
       {/* 1. TOP STAFF NAVIGATION & IDENTITY BAR                          */}
       {/* ============================================================== */}
       <header
-        className={`w-full border-b sticky top-0 z-40 px-4 sm:px-6 py-3 transition-colors ${
+        className={`w-full border-b flex-shrink-0 z-40 px-4 sm:px-6 py-3 transition-colors ${
           darkMode
             ? 'bg-[#182335]/95 border-slate-700/80 backdrop-blur-md'
             : 'bg-white/95 border-slate-200 backdrop-blur-md shadow-2xs'
@@ -329,8 +329,8 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-1">
+      {/* Main Center Content Container */}
+      <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {/* Quick Verify Notification Toast */}
         {quickVerifyToast && (
           <div
