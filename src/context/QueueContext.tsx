@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Ticket, Counter, ServiceId, SERVICE_CATEGORIES, Business, StaffMember } from '@/types/queue';
 import { AudioService } from '@/utils/audio';
+import { SmsService, SmsRecord } from '@/utils/smsService';
 import {
   isSupabaseConfigured,
   supabase,
@@ -34,6 +35,9 @@ interface QueueContextType {
   activeStaff: ActiveStaffInfo | null;
   setActiveStaff: (staff: ActiveStaffInfo | null) => void;
   getCountersForBusiness: (businessId?: string) => Counter[];
+  lastSentSms: SmsRecord | null;
+  smsHistory: SmsRecord[];
+  clearLastSentSms: () => void;
   currentCustomerTicket: Ticket | null;
   lastCalledTicket: Ticket | null;
   soundEnabled: boolean;
@@ -339,6 +343,7 @@ const INITIAL_DEMO_TICKETS: Ticket[] = [
     categoryId: 'general',
     categoryName: 'General Inquiries',
     customerName: 'Emma Watson',
+    phoneNumber: '+1 (555) 345-6789',
     status: 'serving',
     counterId: 1,
     counterName: 'Counter 1',
@@ -355,6 +360,7 @@ const INITIAL_DEMO_TICKETS: Ticket[] = [
     categoryId: 'vip',
     categoryName: 'VIP & Express',
     customerName: 'Jonathan Hayes',
+    phoneNumber: '+1 (555) 456-7890',
     status: 'waiting',
     isScanned: false,
     createdAt: Date.now() - 12 * 60 * 1000,
@@ -367,6 +373,7 @@ const INITIAL_DEMO_TICKETS: Ticket[] = [
     categoryId: 'general',
     categoryName: 'General Inquiries',
     customerName: 'Liam Miller',
+    phoneNumber: '+1 (555) 567-8901',
     status: 'waiting',
     isScanned: false,
     createdAt: Date.now() - 10 * 60 * 1000,
@@ -379,6 +386,7 @@ const INITIAL_DEMO_TICKETS: Ticket[] = [
     categoryId: 'general',
     categoryName: 'General Consultation',
     customerName: 'Claire Redfield',
+    phoneNumber: '+1 (555) 678-9012',
     status: 'waiting',
     isScanned: false,
     createdAt: Date.now() - 5 * 60 * 1000,
@@ -420,6 +428,19 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [lastCalledTicket, setLastCalledTicket] = useState<Ticket | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  const [lastSentSms, setLastSentSms] = useState<SmsRecord | null>(null);
+  const [smsHistory, setSmsHistory] = useState<SmsRecord[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('queuemate_sms_logs');
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return [];
+  });
+
+  const clearLastSentSms = () => setLastSentSms(null);
 
   // Initialize from localStorage first, then sync with Supabase and setup real-time listeners
   useEffect(() => {
@@ -1001,6 +1022,9 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const targetTicketId = ticketId || counter?.currentTicketId;
     if (!targetTicketId) return;
 
+    const currentTicket = tickets.find((t) => t.id === targetTicketId);
+    const targetBusinessId = currentTicket?.businessId || counter?.businessId;
+
     setTickets((prev) =>
       prev.map((t) => {
         if (t.id === targetTicketId) {
@@ -1015,6 +1039,75 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCounters((prev) =>
       prev.map((c) => (c.id === counterId ? { ...c, status: 'serving' } : c))
     );
+
+    // Identify Ticket 2 (the next waiting customer in line)
+    // Filter waiting tickets for this business / counter
+    const eligibleWaiting = tickets.filter((t) => {
+      if (t.status !== 'waiting') return false;
+      if (t.id === targetTicketId) return false;
+
+      if (targetBusinessId) {
+        const matchesBiz =
+          t.businessId === targetBusinessId ||
+          t.businessName?.toLowerCase() === targetBusinessId.toLowerCase();
+        if (!matchesBiz) return false;
+      }
+
+      if (
+        counter &&
+        counter.businessId === targetBusinessId &&
+        counter.assignedCategories &&
+        counter.assignedCategories.length > 0
+      ) {
+        if (!counter.assignedCategories.includes(t.categoryId)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    eligibleWaiting.sort((a, b) => {
+      if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
+      if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
+      return a.createdAt - b.createdAt;
+    });
+
+    // The next waiting customer in line (Ticket 2)
+    const nextTicket =
+      eligibleWaiting[0] ||
+      tickets.find(
+        (t) =>
+          t.status === 'waiting' &&
+          t.id !== targetTicketId &&
+          (!targetBusinessId || t.businessId === targetBusinessId)
+      );
+
+    if (nextTicket) {
+      const bizName =
+        currentTicket?.businessName ||
+        nextTicket.businessName ||
+        businesses.find((b) => b.id === targetBusinessId)?.name ||
+        'QueueMate';
+      const counterLabel = counter?.name || `Counter ${counterId}`;
+      const servingLabel = currentTicket?.number || 'Current Customer';
+
+      SmsService.sendNextInLineAlert({
+        toPhone: nextTicket.phoneNumber || '+1 (555) 019-2834',
+        customerName: nextTicket.customerName || 'Customer',
+        ticketNumber: nextTicket.number,
+        counterName: counterLabel,
+        servingTicketNumber: servingLabel,
+        companyName: bizName,
+      })
+        .then((record) => {
+          setLastSentSms(record);
+          setSmsHistory((prev) => [record, ...prev]);
+        })
+        .catch((err) => {
+          console.warn('SMS dispatch error:', err);
+        });
+    }
   };
 
   const completeTicket = (counterId: number, ticketId?: string) => {
@@ -1139,6 +1232,9 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeStaff,
         setActiveStaff,
         getCountersForBusiness,
+        lastSentSms,
+        smsHistory,
+        clearLastSentSms,
         currentCustomerTicket,
         lastCalledTicket,
         soundEnabled,

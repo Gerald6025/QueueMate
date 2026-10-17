@@ -26,7 +26,9 @@ import {
   Check,
   Bell,
   Coffee,
-  Star
+  Star,
+  Smartphone,
+  MessageSquare
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Business } from '@/types/queue';
@@ -688,7 +690,7 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="Enter your phone number"
+                      placeholder="Enter your phone number (e.g. +1 555-0199)"
                       disabled={isClosed}
                       className={`w-full px-3.5 py-3 rounded-xl border text-sm outline-none transition-all ${
                         isClosed
@@ -696,6 +698,10 @@ export const CustomerKiosk: React.FC<CustomerKioskProps> = ({
                           : (darkMode ? 'bg-[#101927] border-slate-700 text-white focus:border-[#00A843]' : 'bg-white border-slate-200 focus:border-[#00A843] focus:ring-2 focus:ring-emerald-500/15')
                       }`}
                     />
+                    <p className="text-[11.5px] text-emerald-600 dark:text-emerald-400 mt-1.5 flex items-center gap-1.5 font-medium">
+                      <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>We&apos;ll SMS you as soon as you&apos;re next in line so you can step away without worry.</span>
+                    </p>
                   </div>
 
                   {/* Action Button: Matches screenshot "Queue is Closed" with CheckCircle icon */}

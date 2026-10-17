@@ -98,7 +98,7 @@ export const StaffCounter: React.FC = () => {
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                 : 'bg-slate-800 border-slate-700 text-slate-400'
             }`}
-            title={soundEnabled ? 'Chime & voice alerts ON' : 'Audio muted'}
+            title={soundEnabled ? 'Chime ON' : 'Audio muted'}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             <span>{soundEnabled ? 'Chime ON' : 'Muted'}</span>

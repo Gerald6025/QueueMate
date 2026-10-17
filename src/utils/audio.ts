@@ -68,44 +68,14 @@ export class AudioService {
   }
 
   /**
-   * Speaks the ticket and counter announcement using browser SpeechSynthesis
+   * Voice announcements disabled per user request.
    */
-  public static speakAnnouncement(ticketNumber: string, counterName: string): void {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-    try {
-      window.speechSynthesis.cancel(); // Stop any pending speech
-
-      // Split letter and digits for natural pronunciation (e.g., "A 101" instead of "A-dash-one-hundred-and-one")
-      const formattedTicket = ticketNumber.replace('-', ' ');
-      const message = `Attention please. Ticket number ${formattedTicket}, please proceed to ${counterName}.`;
-
-      const utterance = new SpeechSynthesisUtterance(message);
-      utterance.rate = 0.92; // slightly slower for clear broadcast
-      utterance.pitch = 1.05;
-      utterance.volume = 1.0;
-
-      // Prefer a natural English voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(
-        (v) => (v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Zira')))
-      ) || voices.find((v) => v.lang.startsWith('en'));
-
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-
-      // Small timeout to allow chime to play first
-      setTimeout(() => {
-        window.speechSynthesis.speak(utterance);
-      }, 700);
-    } catch {
-      // Voice synthesis may be blocked or unavailable
-    }
+  public static speakAnnouncement(_ticketNumber: string, _counterName: string): void {
+    // Voice speech synthesis disabled
   }
 
-  public static announceCall(ticketNumber: string, counterName: string): void {
+  public static announceCall(_ticketNumber: string, _counterName: string): void {
+    // Chime only, voice removed
     this.playCounterChime();
-    this.speakAnnouncement(ticketNumber, counterName);
   }
 }

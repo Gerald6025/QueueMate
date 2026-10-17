@@ -30,7 +30,10 @@ import {
   Building2,
   User,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Smartphone,
+  MessageSquare,
+  X
 } from 'lucide-react';
 
 interface StaffDashboardViewProps {
@@ -60,6 +63,8 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
     activeStaff,
     setActiveStaff,
     getCountersForBusiness,
+    lastSentSms,
+    clearLastSentSms,
     callNextTicket,
     recallTicket,
     startServing,
@@ -203,6 +208,16 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
     }
     return () => clearInterval(timer);
   }, [currentTicket]);
+
+  // Auto-dismiss SMS notification toast after 8 seconds
+  useEffect(() => {
+    if (lastSentSms) {
+      const timer = setTimeout(() => {
+        clearLastSentSms();
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSentSms, clearLastSentSms]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -376,7 +391,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                   ? 'bg-slate-800 border-slate-700 text-slate-400'
                   : 'bg-slate-100 border-slate-200 text-slate-500'
               }`}
-              title={soundEnabled ? 'Voice & Chimes ON' : 'Audio muted'}
+              title={soundEnabled ? 'Chimes ON' : 'Audio muted'}
             >
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
@@ -431,6 +446,40 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
               <UserX className="w-4 h-4 text-rose-500 flex-shrink-0" />
             )}
             <span>{quickVerifyToast.message}</span>
+          </div>
+        )}
+
+        {/* Real-time SMS Dispatch Alert Banner */}
+        {lastSentSms && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-sky-500/15 border border-emerald-500/40 shadow-lg flex items-center justify-between animate-fade-in text-xs sm:text-sm">
+            <div className="flex items-center space-x-3.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+                <Smartphone className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className="font-extrabold text-emerald-700 dark:text-emerald-300">
+                    SMS Alert Dispatched to Next Customer!
+                  </span>
+                  <span className="font-mono font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 text-xs">
+                    Ticket #{lastSentSms.ticketNumber}
+                  </span>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">
+                    ({lastSentSms.customerName})
+                  </span>
+                </div>
+                <p className="text-[12px] text-slate-700 dark:text-slate-300 mt-0.5 line-clamp-1">
+                  Alert sent to {lastSentSms.toPhone}: &ldquo;{lastSentSms.message}&rdquo;
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={clearLastSentSms}
+              className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer flex-shrink-0 ml-3"
+              title="Dismiss alert"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -631,6 +680,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                 {currentTicket.status === 'called' ? (
                   <button
                     onClick={() => startServing(activeCounter.id, currentTicket.id)}
+                    title="Start serving customer & automatically send SMS alert to the next ticket in line"
                     className="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-blue-600/20 active:scale-95"
                   >
                     <Play className="w-4 h-4" />
@@ -875,7 +925,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                     </div>
 
                     <div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                         <span className="text-xs font-bold text-slate-900 dark:text-white">
                           {t.customerName || 'Customer'}
                         </span>
@@ -888,6 +938,12 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                             VIP
                           </span>
                         )}
+                        {t.id === nextInLine?.id && (
+                          <span className="px-2 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold flex items-center space-x-1">
+                            <Smartphone className="w-2.5 h-2.5" />
+                            <span>Next in line • SMS ready</span>
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center space-x-2 text-[10px] text-slate-400 mt-0.5">
@@ -895,6 +951,12 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                           <Clock className="w-3 h-3" />
                           <span>Waiting {Math.max(1, Math.floor((Date.now() - t.createdAt) / 60000))}m</span>
                         </span>
+                        {t.phoneNumber && (
+                          <span className="text-slate-500 dark:text-slate-400 font-mono flex items-center space-x-0.5">
+                            <Smartphone className="w-3 h-3 text-emerald-500" />
+                            <span>{t.phoneNumber}</span>
+                          </span>
+                        )}
                         {t.isScanned && (
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center space-x-0.5">
                             <CheckCircle2 className="w-3 h-3" />
