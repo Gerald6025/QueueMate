@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   UserCog,
@@ -12,7 +12,8 @@ import {
   EyeOff,
   ChevronRight,
   Users,
-  Shield
+  Shield,
+  UserPlus
 } from 'lucide-react';
 import { useQueue } from '@/context/QueueContext';
 import { StaffMember } from '@/types/queue';
@@ -29,7 +30,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
   onBack,
   onLoginSuccess,
 }) => {
-  const { darkMode, businesses, staffMembers } = useQueue();
+  const { darkMode, businesses, staffMembers, addStaffMember, activeStaff, setActiveStaff } = useQueue();
+
+  // Tab mode: Sign In vs Create Account
+  const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
 
   // Auth session state
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -41,7 +45,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
     company: string;
   } | null>(null);
 
-  // Multi-step flow
+  // Multi-step sign-in flow
   const [step, setStep] = useState<LoginStep>('select-business');
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
@@ -51,6 +55,33 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
   const [showPin, setShowPin] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Registration form state
+  const [regBusinessId, setRegBusinessId] = useState<string>(businesses[0]?.id || 'city-bank');
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regRole, setRegRole] = useState('Counter Staff');
+  const [regCounter, setRegCounter] = useState('Counter 1');
+  const [regPin, setRegPin] = useState('');
+  const [regConfirmPin, setRegConfirmPin] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Ensure default regBusinessId is valid
+  useEffect(() => {
+    if (!regBusinessId && businesses.length > 0) {
+      setRegBusinessId(businesses[0].id);
+    }
+  }, [businesses, regBusinessId]);
+
+  // Dynamically update default counter based on existing staff in selected business
+  useEffect(() => {
+    if (regBusinessId) {
+      const count = staffMembers.filter(
+        (s) => s.businessId === regBusinessId
+      ).length;
+      setRegCounter(`Counter ${count + 1}`);
+    }
+  }, [regBusinessId, staffMembers]);
 
   // Derived data
   const selectedBusiness = useMemo(
@@ -112,8 +143,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
         email: selectedStaff.email || 'operator@queuemate.com',
         counter: selectedStaff.counterName || 'Counter 1',
         company: selectedBusiness.name,
+        businessId: selectedBusiness.id,
       };
 
+      setActiveStaff(staffInfo);
       setSignedInStaff(staffInfo);
       setIsSignedIn(true);
       setErrorMessage(null);
@@ -122,8 +155,81 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
     }, 350);
   };
 
+  const handleRegisterStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim()) {
+      setErrorMessage('Please enter your full name.');
+      return;
+    }
+    if (!regPin || regPin.length < 4) {
+      setErrorMessage('PIN must be at least 4 digits.');
+      return;
+    }
+    if (regPin !== regConfirmPin) {
+      setErrorMessage('PINs do not match.');
+      return;
+    }
+
+    const targetBiz =
+      businesses.find((b) => b.id === regBusinessId) || businesses[0];
+    if (!targetBiz) {
+      setErrorMessage('Please select a valid business.');
+      return;
+    }
+
+    setIsCreating(true);
+    setErrorMessage(null);
+
+    try {
+      const existingCount = staffMembers.filter(
+        (s) =>
+          s.businessId === targetBiz.id ||
+          s.businessName?.toLowerCase() === targetBiz.name.toLowerCase()
+      ).length;
+
+      const counterToAssign = regCounter.trim() || `Counter ${existingCount + 1}`;
+      const emailToUse =
+        regEmail.trim() ||
+        `${regName.toLowerCase().replace(/\s+/g, '.')}@${targetBiz.id}.com`;
+
+      const newStaff = await addStaffMember({
+        businessId: targetBiz.id,
+        businessName: targetBiz.name,
+        name: regName.trim(),
+        email: emailToUse,
+        role: regRole.trim() || 'Counter Staff',
+        counterName: counterToAssign,
+        staffPin: regPin.trim(),
+        active: true,
+      });
+
+      const staffInfo = {
+        name: newStaff.name,
+        role: newStaff.role || 'Counter Staff',
+        email: newStaff.email,
+        counter: newStaff.counterName,
+        company: targetBiz.name,
+        businessId: targetBiz.id,
+      };
+
+      setActiveStaff(staffInfo);
+      setSignedInStaff(staffInfo);
+      setIsSignedIn(true);
+
+      if (onLoginSuccess) onLoginSuccess(staffInfo);
+    } catch (err) {
+      console.error(err);
+      setErrorMessage('Failed to create staff account. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const goBack = () => {
-    if (step === 'enter-pin') {
+    if (authMode === 'register') {
+      setAuthMode('signin');
+      setErrorMessage(null);
+    } else if (step === 'enter-pin') {
       setStep('select-staff');
       setPin('');
       setErrorMessage(null);
@@ -146,6 +252,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
         initialCounterName={signedInStaff.counter}
         companyName={signedInStaff.company}
         onSignOut={() => {
+          setActiveStaff(null);
           setIsSignedIn(false);
           setSignedInStaff(null);
           setStep('select-business');
@@ -187,7 +294,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
                 darkMode ? 'text-white' : 'text-slate-900'
               }`}
             >
-              Staff Sign In
+              Staff Console
             </h1>
           </div>
         </div>
@@ -195,17 +302,258 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
 
       {/* Center Content: Scrollable */}
       <div className="w-full max-w-sm mx-auto flex-1 min-h-0 px-4 pt-1 pb-8 overflow-y-auto overscroll-contain animate-scale-in">
+        {/* Auth mode switcher on the top screen */}
+        {step === 'select-business' && (
+          <div
+            className={`w-full p-1 rounded-2xl flex items-center mb-5 transition-colors ${
+              darkMode ? 'bg-[#182335] border border-slate-700/50' : 'bg-[#EBF3ED]/80'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('signin');
+                setErrorMessage(null);
+              }}
+              className={`flex-1 py-2.5 rounded-xl font-bold text-xs text-center transition-all cursor-pointer ${
+                authMode === 'signin'
+                  ? 'bg-[#00A843] text-white shadow-xs'
+                  : darkMode
+                  ? 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('register');
+                setErrorMessage(null);
+              }}
+              className={`flex-1 py-2.5 rounded-xl font-bold text-xs text-center transition-all cursor-pointer ${
+                authMode === 'register'
+                  ? 'bg-[#00A843] text-white shadow-xs'
+                  : darkMode
+                  ? 'text-slate-400 hover:text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+        )}
+
         {content}
       </div>
     </div>
   );
+
+  // ─── CREATE STAFF ACCOUNT VIEW ──────────────────────────────────────────────
+  if (authMode === 'register') {
+    return card(
+      <>
+        {/* Hero icon */}
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-16 h-16 rounded-3xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3">
+            <UserPlus className="w-8 h-8 text-white stroke-[1.8]" />
+          </div>
+          <h2
+            className={`text-[17px] font-bold mb-1 ${
+              darkMode ? 'text-white' : 'text-slate-900'
+            }`}
+          >
+            Register as Staff
+          </h2>
+          <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            Create your counter staff profile to operate the console
+          </p>
+        </div>
+
+        {/* Error toast */}
+        {errorMessage && (
+          <div className="mb-4 animate-scale-in">
+            <div
+              className={`text-xs py-2 px-3.5 rounded-xl flex items-center space-x-2 font-medium border ${
+                darkMode
+                  ? 'bg-rose-950/80 border-rose-700/60 text-rose-200'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}
+            >
+              <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleRegisterStaff} className="space-y-3.5">
+          <div
+            className={`rounded-3xl p-5 border shadow-2xs space-y-3.5 ${
+              darkMode ? 'bg-[#182335] border-slate-700/60' : 'bg-white border-slate-100'
+            }`}
+          >
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                Company / Workplace
+              </label>
+              <select
+                value={regBusinessId}
+                onChange={(e) => setRegBusinessId(e.target.value)}
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-medium outline-none cursor-pointer ${
+                  darkMode
+                    ? 'bg-[#101927] border-slate-700 text-white'
+                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
+              >
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.industry})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Full Name</label>
+              <input
+                type="text"
+                required
+                value={regName}
+                onChange={(e) => {
+                  setRegName(e.target.value);
+                  setErrorMessage(null);
+                }}
+                placeholder="e.g. minna"
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
+                  darkMode
+                    ? 'bg-[#101927] border-slate-700 text-white'
+                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Email Address</label>
+              <input
+                type="email"
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                placeholder="minna@company.com"
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
+                  darkMode
+                    ? 'bg-[#101927] border-slate-700 text-white'
+                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Role</label>
+                <input
+                  type="text"
+                  value={regRole}
+                  onChange={(e) => setRegRole(e.target.value)}
+                  placeholder="Counter Staff"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
+                    darkMode
+                      ? 'bg-[#101927] border-slate-700 text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Assigned Counter</label>
+                <input
+                  type="text"
+                  value={regCounter}
+                  onChange={(e) => setRegCounter(e.target.value)}
+                  placeholder="Counter 1"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
+                    darkMode
+                      ? 'bg-[#101927] border-slate-700 text-white'
+                      : 'bg-slate-50 border-slate-200 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                Security PIN (4–8 digits)
+              </label>
+              <input
+                type="password"
+                required
+                maxLength={8}
+                minLength={4}
+                value={regPin}
+                onChange={(e) => {
+                  setRegPin(e.target.value.replace(/\D/g, ''));
+                  setErrorMessage(null);
+                }}
+                placeholder="••••"
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono tracking-widest outline-none ${
+                  darkMode
+                    ? 'bg-[#101927] border-slate-700 text-white'
+                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">
+                Confirm Security PIN
+              </label>
+              <input
+                type="password"
+                required
+                maxLength={8}
+                minLength={4}
+                value={regConfirmPin}
+                onChange={(e) => {
+                  setRegConfirmPin(e.target.value.replace(/\D/g, ''));
+                  setErrorMessage(null);
+                }}
+                placeholder="••••"
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-mono tracking-widest outline-none ${
+                  darkMode
+                    ? 'bg-[#101927] border-slate-700 text-white'
+                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                }`}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isCreating || !regName.trim() || regPin.length < 4}
+            className="w-full bg-[#00A843] hover:bg-[#00963c] disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.99] text-white font-bold py-3.5 rounded-2xl shadow-xs text-sm transition-all duration-150 cursor-pointer flex items-center justify-center space-x-2"
+          >
+            {isCreating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>Creating Account...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Create Staff Account & Enter</span>
+              </>
+            )}
+          </button>
+        </form>
+      </>
+    );
+  }
 
   // ─── STEP 1: Select Business ──────────────────────────────────────────────────
   if (step === 'select-business') {
     return card(
       <>
         {/* Hero icon */}
-        <div className="flex flex-col items-center text-center mb-7">
+        <div className="flex flex-col items-center text-center mb-6">
           <div className="w-16 h-16 rounded-3xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3">
             <Building2 className="w-8 h-8 text-white stroke-[1.8]" />
           </div>
@@ -257,13 +605,15 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
                       {biz.name}
                     </div>
                     <div className="text-[11.5px] text-slate-400">
-                      {biz.industry} · {staffCount} staff member{staffCount !== 1 ? 's' : ''}
+                      {biz.industry} · {staffCount} staff member{staffCount !== 1 ? 's' : ''} ({staffCount} counter{staffCount !== 1 ? 's' : ''})
                     </div>
                   </div>
                 </div>
                 <ChevronRight
                   className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                    darkMode ? 'text-slate-600 group-hover:text-emerald-400' : 'text-slate-300 group-hover:text-emerald-500'
+                    darkMode
+                      ? 'text-slate-600 group-hover:text-emerald-400'
+                      : 'text-slate-300 group-hover:text-emerald-500'
                   }`}
                 />
               </button>
@@ -279,7 +629,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
     return card(
       <>
         {/* Hero */}
-        <div className="flex flex-col items-center text-center mb-7">
+        <div className="flex flex-col items-center text-center mb-6">
           <div className="w-16 h-16 rounded-3xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3">
             <Users className="w-8 h-8 text-white stroke-[1.8]" />
           </div>
@@ -291,14 +641,14 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
             {selectedBusiness?.name}
           </h2>
           <p className={`text-[13px] leading-snug ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            Tap your counter to continue
+            Select your account or counter to continue
           </p>
         </div>
 
         {/* Staff accounts for selected business */}
         {staffForBusiness.length === 0 ? (
           <div
-            className={`w-full py-14 rounded-2xl border border-dashed flex flex-col items-center justify-center ${
+            className={`w-full py-12 rounded-2xl border border-dashed flex flex-col items-center justify-center ${
               darkMode ? 'border-slate-700/80 bg-[#101927]/60' : 'border-slate-200 bg-slate-50/70'
             }`}
           >
@@ -306,9 +656,15 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
             <p className={`text-[13px] font-medium ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
               No staff accounts found
             </p>
-            <p className="text-[11px] text-slate-400 mt-1 text-center max-w-[200px] leading-relaxed">
-              Ask your company admin to add you in the Company Portal
-            </p>
+            <button
+              onClick={() => {
+                if (selectedBusinessId) setRegBusinessId(selectedBusinessId);
+                setAuthMode('register');
+              }}
+              className="mt-3 text-xs font-bold text-[#00A843] hover:underline cursor-pointer"
+            >
+              + Create staff account for this workplace
+            </button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -323,11 +679,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
                 }`}
               >
                 <div className="flex items-center space-x-3.5">
-                  {/* Counter initial */}
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 font-bold text-base text-[#00A843] ${
-                    darkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'
-                  }`}>
-                    {staff.counterName.replace(/[^0-9]/g, '') || staff.counterName.charAt(0).toUpperCase()}
+                  <div
+                    className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 font-bold text-base text-[#00A843] ${
+                      darkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'
+                    }`}
+                  >
+                    {staff.name.charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <div
@@ -335,10 +692,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
                         darkMode ? 'text-white' : 'text-slate-900'
                       }`}
                     >
-                      {staff.counterName}
+                      {staff.name}
                     </div>
                     <div className="text-[11.5px] text-slate-400">
-                      {staff.role || 'Counter Staff'}
+                      {staff.counterName} · {staff.role || 'Counter Staff'}
                     </div>
                   </div>
                 </div>
@@ -354,12 +711,24 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
                   </span>
                   <ChevronRight
                     className={`w-4 h-4 flex-shrink-0 transition-colors ${
-                      darkMode ? 'text-slate-600 group-hover:text-emerald-400' : 'text-slate-300 group-hover:text-emerald-500'
+                      darkMode
+                        ? 'text-slate-600 group-hover:text-emerald-400'
+                        : 'text-slate-300 group-hover:text-emerald-500'
                     }`}
                   />
                 </div>
               </button>
             ))}
+
+            <button
+              onClick={() => {
+                if (selectedBusinessId) setRegBusinessId(selectedBusinessId);
+                setAuthMode('register');
+              }}
+              className="w-full py-3 text-center text-xs font-bold text-[#00A843] hover:underline cursor-pointer"
+            >
+              + Add another staff account
+            </button>
           </div>
         )}
       </>
@@ -372,11 +741,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
       {/* Hero */}
       <div className="flex flex-col items-center text-center mb-7">
         <div className="w-16 h-16 rounded-3xl bg-[#00A843] flex items-center justify-center shadow-md shadow-emerald-700/20 mb-3 relative">
-          {/* Avatar initial */}
           <span className="text-white font-extrabold text-2xl leading-none">
-            {selectedStaff?.name.charAt(0)}
+            {selectedStaff?.name.charAt(0).toUpperCase()}
           </span>
-          {/* Shield badge */}
           <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-white dark:bg-[#182335] flex items-center justify-center shadow-sm border border-slate-100 dark:border-slate-700">
             <Shield className="w-3.5 h-3.5 text-[#00A843]" />
           </div>
@@ -389,7 +756,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
           {selectedStaff?.name}
         </h2>
         <p className={`text-[12.5px] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-          {selectedStaff?.role || 'Counter Staff'} · {selectedBusiness?.name}
+          {selectedStaff?.counterName} · {selectedBusiness?.name}
         </p>
       </div>
 
@@ -456,9 +823,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
           </div>
         </div>
 
-        {/* PIN numpad — optional quick tap entry */}
+        {/* PIN numpad — quick tap entry */}
         <div className="grid grid-cols-3 gap-2.5 mb-5">
-          {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((key, i) => (
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((key, i) => (
             <button
               key={i}
               type="button"
@@ -501,16 +868,11 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({
           ) : (
             <>
               <CheckCircle2 className="w-4 h-4" />
-              <span>Sign In</span>
+              <span>Sign In & Open Station</span>
             </>
           )}
         </button>
       </form>
-
-      <p className="text-[11.5px] text-slate-400 dark:text-slate-500 text-center mt-4">
-        Don't remember your PIN?{' '}
-        <span className="text-[#00A843] font-semibold">Contact your company admin</span>
-      </p>
     </>
   );
 };

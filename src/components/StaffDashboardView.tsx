@@ -44,11 +44,11 @@ interface StaffDashboardViewProps {
 }
 
 export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
-  staffName = 'Elena Rostova',
-  staffRole = 'Senior Service Operator',
-  staffEmail = 'elena@citybank.com',
-  initialCounterName = 'Counter 1',
-  companyName = 'City Bank',
+  staffName: propStaffName,
+  staffRole: propStaffRole,
+  staffEmail: propStaffEmail,
+  initialCounterName: propCounterName,
+  companyName: propCompanyName,
   onSignOut,
   onSwitchRole,
 }) => {
@@ -56,6 +56,10 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
     counters,
     tickets,
     businesses,
+    staffMembers,
+    activeStaff,
+    setActiveStaff,
+    getCountersForBusiness,
     callNextTicket,
     recallTicket,
     startServing,
@@ -68,12 +72,60 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
     setDarkMode
   } = useQueue();
 
+  // Resolve current active staff member identity (Priority: Explicit Props -> activeStaff in Context/Storage -> custom created staff in state -> default)
+  const resolvedStaff = React.useMemo(() => {
+    if (propStaffName && propStaffName !== 'Elena Rostova') {
+      return {
+        name: propStaffName,
+        role: propStaffRole || 'Counter Staff',
+        email: propStaffEmail || '',
+        counter: propCounterName || 'Counter 1',
+        company: propCompanyName || 'City Bank',
+      };
+    }
+    if (activeStaff?.name) {
+      return {
+        name: activeStaff.name,
+        role: activeStaff.role || 'Counter Staff',
+        email: activeStaff.email || '',
+        counter: activeStaff.counter || 'Counter 1',
+        company: activeStaff.company || 'City Bank',
+      };
+    }
+    const customStaff = staffMembers.find(
+      (s) => !['staff-1', 'staff-2', 'staff-3', 'staff-4'].includes(s.id)
+    );
+    if (customStaff) {
+      return {
+        name: customStaff.name,
+        role: customStaff.role || 'Counter Staff',
+        email: customStaff.email || '',
+        counter: customStaff.counterName || 'Counter 1',
+        company: customStaff.businessName || 'City Bank',
+      };
+    }
+    return {
+      name: propStaffName || 'Elena Rostova',
+      role: propStaffRole || 'Senior Service Operator',
+      email: propStaffEmail || 'elena@citybank.com',
+      counter: propCounterName || 'Counter 1',
+      company: propCompanyName || 'City Bank',
+    };
+  }, [propStaffName, propStaffRole, propStaffEmail, propCounterName, propCompanyName, activeStaff, staffMembers]);
+
+  const staffName = resolvedStaff.name;
+  const staffRole = resolvedStaff.role;
+  const staffEmail = resolvedStaff.email;
+  const companyName = resolvedStaff.company;
+  const initialCounterName = resolvedStaff.counter;
+
   // Find business details (safe fallback to companyName instead of generic first business)
   const currentBiz: Business =
     businesses.find(
       (b) =>
         b.name.toLowerCase() === companyName.toLowerCase() ||
-        b.id === companyName.toLowerCase()
+        b.id === companyName.toLowerCase() ||
+        b.id === companyName.toLowerCase().replace(/[^a-z0-9]/g, '-')
     ) || {
       id: companyName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
       name: companyName,
@@ -85,8 +137,29 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
       queueWindow: '08:00 – 16:30',
     };
 
+  // Facility counters strictly matching this company (1 staff account = 1 counter)
+  const facilityCounters = React.useMemo(() => {
+    const list = getCountersForBusiness(currentBiz.id);
+    if (list.length > 0) return list;
+
+    // Fallback: exactly 1 counter for this logged-in staff member
+    return [
+      {
+        id: 1,
+        name: initialCounterName || 'Counter 1',
+        staffName: staffName,
+        status: 'idle' as const,
+        assignedCategories: ['general', 'billing', 'tech', 'vip'] as ServiceId[],
+        servedCount: 0,
+        businessId: currentBiz.id,
+      },
+    ];
+  }, [getCountersForBusiness, currentBiz.id, initialCounterName, staffName]);
+
   // Selected Counter
-  const initialCounter = counters.find((c) => c.name.toLowerCase() === initialCounterName.toLowerCase()) || counters[0];
+  const initialCounter =
+    facilityCounters.find((c) => c.name.toLowerCase() === initialCounterName.toLowerCase()) ||
+    facilityCounters[0];
   const [selectedCounterId, setSelectedCounterId] = useState<number>(initialCounter.id);
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -95,8 +168,15 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
   const [quickVerifyCode, setQuickVerifyCode] = useState('');
   const [quickVerifyToast, setQuickVerifyToast] = useState<{ message: string; success: boolean } | null>(null);
 
+  // Sync selectedCounterId if facilityCounters changes
+  useEffect(() => {
+    if (!facilityCounters.some((c) => c.id === selectedCounterId)) {
+      setSelectedCounterId(facilityCounters[0].id);
+    }
+  }, [facilityCounters, selectedCounterId]);
+
   // Active counter & active ticket (find by currentTicketId or currently called/serving for this counter)
-  const activeCounter = counters.find((c) => c.id === selectedCounterId) || counters[0];
+  const activeCounter = facilityCounters.find((c) => c.id === selectedCounterId) || facilityCounters[0];
   const currentTicket =
     tickets.find((t) => t.id === activeCounter.currentTicketId) ||
     tickets.find(
@@ -251,7 +331,9 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                   {isOnBreak ? 'Counter On Break' : `Assigned to ${activeCounter.name}`}
                 </span>
                 <span>•</span>
-                <span>{activeCounter.staffName || staffName}</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {staffName || activeCounter.staffName || 'Operator'}
+                </span>
               </p>
             </div>
           </div>
@@ -314,7 +396,10 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
             {/* Sign Out Button */}
             <button
-              onClick={onSignOut}
+              onClick={() => {
+                setActiveStaff(null);
+                onSignOut();
+              }}
               className={`flex items-center space-x-1.5 text-xs font-semibold py-1.5 px-3 rounded-xl border transition-colors cursor-pointer ${
                 darkMode
                   ? 'bg-rose-500/10 border-rose-500/20 text-rose-300 hover:bg-rose-500/20'
@@ -631,18 +716,25 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
         <div>
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
-              Facility Counters Overview (Switch Station)
+              Facility Counters ({facilityCounters.length})
             </h4>
             <span className="text-xs text-slate-500">
-              Click a counter to operate it
+              {facilityCounters.length === 1 ? '1 Active Station' : 'Click a counter to operate it'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {counters.map((c) => {
+          <div className={`grid gap-2.5 ${
+            facilityCounters.length === 1
+              ? 'grid-cols-1 max-w-sm'
+              : facilityCounters.length === 2
+              ? 'grid-cols-2 max-w-xl'
+              : 'grid-cols-2 sm:grid-cols-4'
+          }`}>
+            {facilityCounters.map((c) => {
               const isSelected = c.id === selectedCounterId;
               const isBusy = c.currentTicketId !== undefined;
               const busyTicket = tickets.find((t) => t.id === c.currentTicketId);
+              const opName = c.id === activeCounter.id ? staffName : (c.staffName || 'Operator');
 
               return (
                 <button
@@ -671,8 +763,8 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                     />
                   </div>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                    {c.staffName || 'Operator'}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate font-medium">
+                    {opName}
                   </p>
 
                   <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700/40 flex items-center justify-between text-[11px]">

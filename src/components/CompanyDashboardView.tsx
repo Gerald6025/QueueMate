@@ -82,6 +82,11 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
   const [newStaffCounter, setNewStaffCounter] = useState('Counter 1');
   const [newStaffPin, setNewStaffPin] = useState('1234');
 
+  const openAddStaffModal = () => {
+    setNewStaffCounter(`Counter ${currentBizStaff.length + 1}`);
+    setShowAddStaffModal(true);
+  };
+
   // Editable Company Settings (Matches user screenshot)
   const [compName, setCompName] = useState(companyName);
   const [compIndustry, setCompIndustry] = useState(industry);
@@ -671,7 +676,7 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                   {/* Staff Preview Card: Rounded box with centered UserPlus outline icon if empty */}
                   {currentBizStaff.length === 0 ? (
                     <div 
-                      onClick={() => setShowAddStaffModal(true)}
+                      onClick={openAddStaffModal}
                       className={`w-full py-9 rounded-2xl border border-dashed flex flex-col items-center justify-center cursor-pointer transition-colors ${
                         darkMode 
                           ? 'border-slate-700/80 bg-[#101927]/60 hover:border-emerald-500/50' 
@@ -1009,7 +1014,7 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
                 {/* Add Staff Member Green Button (Matches user screenshot) */}
                 <button
                   type="button"
-                  onClick={() => setShowAddStaffModal(true)}
+                  onClick={openAddStaffModal}
                   className="w-full bg-[#00A843] hover:bg-[#00963c] active:scale-[0.99] text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-xs transition-all cursor-pointer mb-6"
                 >
                   <UserPlus className="w-4 h-4" />
@@ -1459,18 +1464,30 @@ export const CompanyDashboardView: React.FC<CompanyDashboardViewProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Assigned Counter</label>
-                <select
-                  value={newStaffCounter}
-                  onChange={(e) => setNewStaffCounter(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
-                    darkMode ? 'bg-[#101927] border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
-                  }`}
-                >
-                  <option value="Counter 1">Counter 1</option>
-                  <option value="Counter 2">Counter 2</option>
-                  <option value="Counter 3">Counter 3</option>
-                  <option value="Counter 4 (VIP)">Counter 4 (VIP)</option>
-                </select>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={newStaffCounter}
+                    onChange={(e) => setNewStaffCounter(e.target.value)}
+                    placeholder={`e.g. Counter ${currentBizStaff.length + 1}`}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none ${
+                      darkMode ? 'bg-[#101927] border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                    }`}
+                  />
+                  <select
+                    value={newStaffCounter}
+                    onChange={(e) => setNewStaffCounter(e.target.value)}
+                    className={`px-2.5 py-2.5 rounded-xl border text-xs outline-none cursor-pointer ${
+                      darkMode ? 'bg-[#101927] border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <option value={`Counter ${currentBizStaff.length + 1}`}>Auto</option>
+                    <option value="Counter 1">Counter 1</option>
+                    <option value="Counter 2">Counter 2</option>
+                    <option value="Counter 3">Counter 3</option>
+                    <option value="Counter 4 (VIP)">Counter 4 (VIP)</option>
+                  </select>
+                </div>
               </div>
 
               <div>

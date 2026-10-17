@@ -17,11 +17,23 @@ import {
   deleteTicketFromDB,
 } from '@/lib/supabase';
 
+export interface ActiveStaffInfo {
+  name: string;
+  role: string;
+  email: string;
+  counter: string;
+  company: string;
+  businessId?: string;
+}
+
 interface QueueContextType {
   tickets: Ticket[];
   counters: Counter[];
   businesses: Business[];
   staffMembers: StaffMember[];
+  activeStaff: ActiveStaffInfo | null;
+  setActiveStaff: (staff: ActiveStaffInfo | null) => void;
+  getCountersForBusiness: (businessId?: string) => Counter[];
   currentCustomerTicket: Ticket | null;
   lastCalledTicket: Ticket | null;
   soundEnabled: boolean;
@@ -176,7 +188,7 @@ export const INITIAL_STAFF: StaffMember[] = [
   },
 ];
 
-const INITIAL_COUNTERS: Counter[] = [
+export const INITIAL_COUNTERS: Counter[] = [
   {
     id: 1,
     name: 'Counter 1',
@@ -197,8 +209,8 @@ const INITIAL_COUNTERS: Counter[] = [
   },
   {
     id: 3,
-    name: 'Counter 3',
-    staffName: 'Sophia Patel',
+    name: 'Counter 1',
+    staffName: 'Dr. Sophia Patel',
     status: 'idle',
     assignedCategories: ['billing', 'tech'],
     servedCount: 0,
@@ -206,7 +218,7 @@ const INITIAL_COUNTERS: Counter[] = [
   },
   {
     id: 4,
-    name: 'Counter 4 (VIP)',
+    name: 'Counter 1',
     staffName: 'David Kim',
     status: 'idle',
     assignedCategories: ['vip', 'general'],
@@ -214,6 +226,75 @@ const INITIAL_COUNTERS: Counter[] = [
     businessId: 'tech-mart',
   },
 ];
+
+/**
+ * Ensures strict 1-to-1 relationship between staff accounts and counters per company.
+ * If a company has 1 staff account, it has exactly 1 counter.
+ */
+export const syncCountersWithStaff = (
+  staffList: StaffMember[],
+  currentCounters: Counter[]
+): Counter[] => {
+  const updatedCounters: Counter[] = [];
+  let nextCounterId = 1;
+
+  // Collect all unique business IDs from staff and counters
+  const bizIds = Array.from(
+    new Set([
+      ...staffList.map((s) => s.businessId),
+      ...currentCounters.map((c) => c.businessId).filter(Boolean) as string[],
+    ])
+  );
+
+  for (const bizId of bizIds) {
+    const bizStaff = staffList.filter((s) => s.businessId === bizId && s.active !== false);
+
+    // Each staff account in a company means exactly 1 counter
+    bizStaff.forEach((staff, index) => {
+      const counterName = staff.counterName || `Counter ${index + 1}`;
+
+      // Match existing counter to keep servedCount and runtime status
+      const existing = currentCounters.find(
+        (c) =>
+          c.businessId === bizId &&
+          (c.name.toLowerCase() === counterName.toLowerCase() ||
+            c.staffName.toLowerCase() === staff.name.toLowerCase())
+      );
+
+      if (existing) {
+        updatedCounters.push({
+          ...existing,
+          name: counterName,
+          staffName: staff.name,
+          businessId: bizId,
+        });
+      } else {
+        updatedCounters.push({
+          id: nextCounterId++,
+          name: counterName,
+          staffName: staff.name,
+          status: 'idle',
+          assignedCategories: ['general', 'billing', 'tech', 'vip'],
+          servedCount: 0,
+          businessId: bizId,
+        });
+      }
+    });
+  }
+
+  // Ensure unique positive IDs
+  const usedIds = new Set<number>();
+  let fallbackId = 1;
+  return updatedCounters.map((c) => {
+    let id = c.id;
+    if (!id || usedIds.has(id)) {
+      while (usedIds.has(fallbackId)) fallbackId++;
+      id = fallbackId++;
+    }
+    usedIds.add(id);
+    return { ...c, id };
+  });
+};
 
 const INITIAL_DEMO_TICKETS: Ticket[] = [
   {
@@ -312,6 +393,29 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [tickets, setTickets] = useState<Ticket[]>(INITIAL_DEMO_TICKETS);
   const [counters, setCounters] = useState<Counter[]>(INITIAL_COUNTERS);
 
+  const [activeStaff, setActiveStaffState] = useState<ActiveStaffInfo | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('queuemate_active_staff');
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return null;
+  });
+
+  const setActiveStaff = (staff: ActiveStaffInfo | null) => {
+    setActiveStaffState(staff);
+    if (typeof window !== 'undefined') {
+      try {
+        if (staff) {
+          localStorage.setItem('queuemate_active_staff', JSON.stringify(staff));
+        } else {
+          localStorage.removeItem('queuemate_active_staff');
+        }
+      } catch {}
+    }
+  };
+
   const [currentCustomerTicket, setCurrentCustomerTicket] = useState<Ticket | null>(null);
   const [lastCalledTicket, setLastCalledTicket] = useState<Ticket | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -327,6 +431,7 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const savedCounters = localStorage.getItem('qms_counters');
       const savedCustomerTicket = localStorage.getItem('qms_my_ticket');
       const savedDark = localStorage.getItem('queuemate_setting_dark');
+      const savedActiveStaff = localStorage.getItem('queuemate_active_staff');
 
       if (savedBusinesses) setBusinesses(JSON.parse(savedBusinesses));
       if (savedStaff) setStaffMembers(JSON.parse(savedStaff));
@@ -334,6 +439,11 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (savedCounters) setCounters(JSON.parse(savedCounters));
       if (savedCustomerTicket) setCurrentCustomerTicket(JSON.parse(savedCustomerTicket));
       if (savedDark !== null) setDarkMode(savedDark === 'true');
+      if (savedActiveStaff) {
+        try {
+          setActiveStaffState(JSON.parse(savedActiveStaff));
+        } catch {}
+      }
     } catch {
       // LocalStorage fallback
     }
@@ -500,6 +610,43 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // ignore
     }
   }, [businesses, staffMembers, tickets, counters, currentCustomerTicket]);
+
+  // Synchronize counters strictly with staff accounts: 1 staff account = 1 counter per company
+  useEffect(() => {
+    setCounters((prev) => syncCountersWithStaff(staffMembers, prev));
+  }, [staffMembers]);
+
+  const getCountersForBusiness = (businessId?: string): Counter[] => {
+    if (!businessId) return counters;
+    const cleanId = businessId.toLowerCase().trim();
+    const cleanSlug = cleanId.replace(/[^a-z0-9]/g, '-');
+    const matched = counters.filter(
+      (c) =>
+        c.businessId?.toLowerCase() === cleanId ||
+        c.businessId?.toLowerCase() === cleanSlug
+    );
+    if (matched.length > 0) return matched;
+
+    // Direct fallback from staff members to ensure 1-to-1 sync
+    const bizStaff = staffMembers.filter(
+      (s) =>
+        s.businessId?.toLowerCase() === cleanId ||
+        s.businessId?.toLowerCase() === cleanSlug ||
+        s.businessName?.toLowerCase() === cleanId
+    );
+    if (bizStaff.length > 0) {
+      return bizStaff.map((s, idx) => ({
+        id: idx + 1,
+        name: s.counterName || `Counter ${idx + 1}`,
+        staffName: s.name,
+        status: 'idle' as const,
+        assignedCategories: ['general', 'billing', 'tech', 'vip'] as ServiceId[],
+        servedCount: 0,
+        businessId: s.businessId || cleanId,
+      }));
+    }
+    return [];
+  };
 
   // Keep customer ticket up to date if status changes
   useEffect(() => {
@@ -989,6 +1136,9 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         counters,
         businesses,
         staffMembers,
+        activeStaff,
+        setActiveStaff,
+        getCountersForBusiness,
         currentCustomerTicket,
         lastCalledTicket,
         soundEnabled,
