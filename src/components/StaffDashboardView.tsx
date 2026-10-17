@@ -5,6 +5,7 @@ import { useQueue } from '@/context/QueueContext';
 import { Ticket, Counter, ServiceId, Business, StaffMember } from '@/types/queue';
 import { AudioService } from '@/utils/audio';
 import { QRScannerModal } from './QRScannerModal';
+import { SmsGatewayModal } from './SmsGatewayModal';
 import confetti from 'canvas-confetti';
 import {
   Megaphone,
@@ -168,6 +169,7 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
   const [selectedCounterId, setSelectedCounterId] = useState<number>(initialCounter.id);
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showSmsModal, setShowSmsModal] = useState(false);
   const [queueFilter, setQueueFilter] = useState<'my-counter' | 'all'>('my-counter');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickVerifyCode, setQuickVerifyCode] = useState('');
@@ -381,6 +383,20 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
               <span>{isOnBreak ? 'Resume Work' : 'Take Break'}</span>
             </button>
 
+            {/* SMS Gateway Setup */}
+            <button
+              onClick={() => setShowSmsModal(true)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                darkMode
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+              title="SMS Gateway & Phone Delivery Settings"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="hidden sm:inline">SMS Gateway</span>
+            </button>
+
             {/* Sound Toggle */}
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
@@ -451,35 +467,82 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
         {/* Real-time SMS Dispatch Alert Banner */}
         {lastSentSms && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-sky-500/15 border border-emerald-500/40 shadow-lg flex items-center justify-between animate-fade-in text-xs sm:text-sm">
-            <div className="flex items-center space-x-3.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-sky-500/15 border border-emerald-500/40 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in text-xs sm:text-sm">
+            <div className="flex items-start space-x-3.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-md mt-0.5 sm:mt-0">
                 <Smartphone className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                   <span className="font-extrabold text-emerald-700 dark:text-emerald-300">
-                    SMS Alert Dispatched to Next Customer!
+                    SMS Alert for Ticket #{lastSentSms.ticketNumber}!
                   </span>
                   <span className="font-mono font-black px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 text-xs">
-                    Ticket #{lastSentSms.ticketNumber}
+                    {lastSentSms.toPhone}
                   </span>
                   <span className="text-xs text-slate-600 dark:text-slate-300">
                     ({lastSentSms.customerName})
                   </span>
+                  {lastSentSms.provider && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      via {lastSentSms.provider}
+                    </span>
+                  )}
                 </div>
-                <p className="text-[12px] text-slate-700 dark:text-slate-300 mt-0.5 line-clamp-1">
-                  Alert sent to {lastSentSms.toPhone}: &ldquo;{lastSentSms.message}&rdquo;
+                <p className="text-[12px] text-slate-700 dark:text-slate-300 mt-0.5 line-clamp-1 font-mono">
+                  &ldquo;{lastSentSms.message}&rdquo;
                 </p>
+                {lastSentSms.requiresGatewaySetup && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1 font-medium">
+                    <span>⚠️ Cellular gateway credentials not set yet. Tap &apos;Send via Phone&apos; or click Setup to connect Twilio / Africa&apos;s Talking / Termii.</span>
+                  </p>
+                )}
               </div>
             </div>
-            <button
-              onClick={clearLastSentSms}
-              className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer flex-shrink-0 ml-3"
-              title="Dismiss alert"
-            >
-              <X className="w-4 h-4" />
-            </button>
+
+            <div className="flex items-center space-x-2 self-end sm:self-auto flex-shrink-0">
+              {lastSentSms.nativeSmsUrl && (
+                <a
+                  href={lastSentSms.nativeSmsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-1.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1 shadow-xs cursor-pointer transition-all"
+                  title="Send via your phone's Messages app directly"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Send via Phone</span>
+                </a>
+              )}
+
+              {lastSentSms.whatsappUrl && (
+                <a
+                  href={lastSentSms.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-1.5 px-2.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs flex items-center space-x-1 shadow-xs cursor-pointer transition-all"
+                  title="Send via WhatsApp directly"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+              )}
+
+              <button
+                onClick={() => setShowSmsModal(true)}
+                className="py-1.5 px-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-500 text-slate-700 dark:text-slate-300 font-semibold text-xs cursor-pointer transition-colors"
+                title="Configure Twilio, Termii, or Africa's Talking API"
+              >
+                Setup
+              </button>
+
+              <button
+                onClick={clearLastSentSms}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                title="Dismiss alert"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -1009,6 +1072,14 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
           onClose={() => setShowVerifyModal(false)}
         />
       )}
+
+      {/* SMS Gateway Setup & Testing Modal */}
+      <SmsGatewayModal
+        isOpen={showSmsModal}
+        onClose={() => setShowSmsModal(false)}
+        lastSentSms={lastSentSms}
+        darkMode={darkMode}
+      />
     </div>
   );
 };
