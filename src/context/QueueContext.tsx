@@ -3,7 +3,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Ticket, Counter, ServiceId, SERVICE_CATEGORIES, Business, StaffMember } from '@/types/queue';
 import { AudioService } from '@/utils/audio';
-import { alertNextCustomerInLine, sendSmsNotification } from '@/utils/smsService';
+import {
+  alertNextCustomerInLine,
+  sendSmsNotification,
+  alertCalledCustomer,
+  alertTicketCreated,
+} from '@/utils/smsService';
 import {
   isSupabaseConfigured,
   supabase,
@@ -828,6 +833,25 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Save to Supabase
     saveTicketToDB(newTicket);
 
+    // Send instant SMS confirmation if phone number was provided
+    if (newTicket.phoneNumber) {
+      alertTicketCreated({
+        ticket: newTicket,
+        businessName: newTicket.businessName,
+      }).then((res) => {
+        if (res?.success) {
+          setLastSmsAlert({
+            ticketNumber: newTicket.number,
+            customerName: newTicket.customerName,
+            recipient: newTicket.phoneNumber!,
+            success: true,
+            message: `SMS Confirmation sent to ${newTicket.number} (${newTicket.phoneNumber})!`,
+            timestamp: Date.now(),
+          });
+        }
+      });
+    }
+
     return newTicket;
   };
 
@@ -997,6 +1021,85 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (soundEnabled) {
       AudioService.announceCall(updatedTicket.number, counterName);
+    }
+
+    // =====================================================================
+    // 1. AUTOMATIC SMS TO THE CALLED CUSTOMER (CUSTOMER 1)
+    // =====================================================================
+    if (updatedTicket.phoneNumber) {
+      alertCalledCustomer({
+        calledTicket: updatedTicket,
+        counterName,
+        businessName: updatedTicket.businessName || targetBusinessId,
+      }).then((res) => {
+        if (res?.success) {
+          setLastSmsAlert({
+            ticketNumber: updatedTicket.number,
+            customerName: updatedTicket.customerName,
+            recipient: updatedTicket.phoneNumber!,
+            success: true,
+            message: `SMS sent to Ticket ${updatedTicket.number}: Called to ${counterName}!`,
+            timestamp: Date.now(),
+          });
+        }
+      });
+    }
+
+    // =====================================================================
+    // 2. AUTOMATIC SMS TO THE NEXT CUSTOMER IN LINE (CUSTOMER 2)
+    // =====================================================================
+    const remainingWaiting = tickets
+      .filter((t) => {
+        if (t.status !== 'waiting') return false;
+        if (t.id === updatedTicket.id) return false;
+
+        if (targetBusinessId) {
+          const matchesBiz =
+            t.businessId === targetBusinessId ||
+            t.businessName?.toLowerCase() === targetBusinessId.toLowerCase();
+          if (!matchesBiz) return false;
+        }
+
+        if (
+          counter &&
+          counter.businessId === targetBusinessId &&
+          counter.assignedCategories &&
+          counter.assignedCategories.length > 0
+        ) {
+          if (!counter.assignedCategories.includes(t.categoryId)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
+        if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
+        return a.createdAt - b.createdAt;
+      });
+
+    const nextTicket = remainingWaiting[0];
+
+    if (nextTicket && nextTicket.phoneNumber) {
+      alertNextCustomerInLine({
+        nextTicket,
+        servingTicket: updatedTicket,
+        counterName,
+        businessName: updatedTicket.businessName || targetBusinessId,
+        actionType: 'called',
+      }).then((res) => {
+        if (res?.success) {
+          setLastSmsAlert({
+            ticketNumber: nextTicket.number,
+            customerName: nextTicket.customerName,
+            recipient: nextTicket.phoneNumber!,
+            success: true,
+            message: `Automated SMS sent to Ticket ${nextTicket.number} (${nextTicket.phoneNumber}) letting them know they are next in line!`,
+            timestamp: Date.now(),
+          });
+          setTickets((prev) =>
+            prev.map((t) => (t.id === nextTicket.id ? { ...t, nextAlertSent: true } : t))
+          );
+        }
+      });
     }
 
     return updatedTicket;
