@@ -174,8 +174,14 @@ export const StaffCounter: React.FC = () => {
               <span>{lastSmsAlert.message}</span>
             </div>
           </div>
-          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 font-bold ml-2 flex-shrink-0">
-            Vonage SMS Sent
+          <span
+            className={`text-[10px] uppercase font-mono px-2 py-0.5 rounded-md font-bold ml-2 flex-shrink-0 ${
+              lastSmsAlert.success
+                ? 'bg-sky-500/20 text-sky-400'
+                : 'bg-rose-500/20 text-rose-400'
+            }`}
+          >
+            {lastSmsAlert.success ? 'Vonage SMS Sent' : 'SMS Failed'}
           </span>
         </div>
       )}

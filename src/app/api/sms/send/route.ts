@@ -24,8 +24,8 @@ export async function POST(req: Request) {
       cleanedNumber = '263' + cleanedNumber;
     }
 
-    const apiKey = process.env.VONAGE_API_KEY;
-    const apiSecret = process.env.VONAGE_API_SECRET;
+    const apiKey = process.env.VONAGE_API_KEY || '16317175';
+    const apiSecret = process.env.VONAGE_API_SECRET || 'sFtupFTFXLRJRN3g';
     const from = customFrom || process.env.VONAGE_FROM || 'Vonage APIs';
 
     if (!apiKey || !apiSecret) {
