@@ -29,6 +29,8 @@ export interface Ticket {
   createdAt: number;
   calledAt?: number;
   completedAt?: number;
+  smsSent?: boolean;
+  nextAlertSent?: boolean;
 }
 
 export interface Counter {

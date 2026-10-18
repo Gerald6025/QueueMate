@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Ticket, Counter, ServiceId, SERVICE_CATEGORIES, Business, StaffMember } from '@/types/queue';
 import { AudioService } from '@/utils/audio';
+import { alertNextCustomerInLine, sendSmsNotification } from '@/utils/smsService';
 import {
   isSupabaseConfigured,
   supabase,
@@ -79,6 +80,15 @@ interface QueueContextType {
     qrOrTicketId: string, 
     businessId?: string
   ) => Promise<{ success: boolean; message: string; ticket?: Ticket }>;
+  lastSmsAlert: {
+    ticketNumber: string;
+    customerName?: string;
+    recipient: string;
+    success: boolean;
+    message: string;
+    timestamp: number;
+  } | null;
+  sendManualSmsAlert: (ticketId: string, customMessage?: string) => Promise<boolean>;
 }
 
 export const INITIAL_BUSINESSES: Business[] = [
@@ -356,7 +366,7 @@ const INITIAL_DEMO_TICKETS: Ticket[] = [
     categoryId: 'vip',
     categoryName: 'VIP & Express',
     customerName: 'Jonathan Hayes',
-    phoneNumber: '+1 (555) 456-7890',
+    phoneNumber: '263787247501',
     status: 'waiting',
     isScanned: false,
     createdAt: Date.now() - 12 * 60 * 1000,
@@ -369,7 +379,7 @@ const INITIAL_DEMO_TICKETS: Ticket[] = [
     categoryId: 'general',
     categoryName: 'General Inquiries',
     customerName: 'Liam Miller',
-    phoneNumber: '+1 (555) 567-8901',
+    phoneNumber: '263787247501',
     status: 'waiting',
     isScanned: false,
     createdAt: Date.now() - 10 * 60 * 1000,
@@ -424,6 +434,14 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [lastCalledTicket, setLastCalledTicket] = useState<Ticket | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [lastSmsAlert, setLastSmsAlert] = useState<{
+    ticketNumber: string;
+    customerName?: string;
+    recipient: string;
+    success: boolean;
+    message: string;
+    timestamp: number;
+  } | null>(null);
 
   // Initialize from localStorage first, then sync with Supabase and setup real-time listeners
   useEffect(() => {
@@ -1005,10 +1023,13 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const targetTicketId = ticketId || counter?.currentTicketId;
     if (!targetTicketId) return;
 
+    let targetServingTicket: Ticket | undefined;
+
     setTickets((prev) =>
       prev.map((t) => {
         if (t.id === targetTicketId) {
           const updated: Ticket = { ...t, status: 'serving' };
+          targetServingTicket = updated;
           saveTicketToDB(updated);
           return updated;
         }
@@ -1019,6 +1040,122 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCounters((prev) =>
       prev.map((c) => (c.id === counterId ? { ...c, status: 'serving' } : c))
     );
+
+    // =====================================================================
+    // AUTOMATIC VONAGE SMS TO CUSTOMER 2 (NEXT IN LINE)
+    // When counter is serving Customer 1, automatically notify Customer 2!
+    // =====================================================================
+    const activeServing = targetServingTicket || tickets.find((t) => t.id === targetTicketId);
+    const counterName = counter?.name || `Counter ${counterId}`;
+    const targetBusinessId = activeServing?.businessId || counter?.businessId;
+
+    // Look for the next waiting customer eligible for this queue/counter
+    const waitingTickets = tickets.filter((t) => {
+      if (t.status !== 'waiting') return false;
+      if (t.id === targetTicketId) return false;
+
+      if (targetBusinessId) {
+        const matchesBiz =
+          t.businessId === targetBusinessId ||
+          t.businessName?.toLowerCase() === targetBusinessId.toLowerCase();
+        if (!matchesBiz) return false;
+      }
+
+      if (
+        counter &&
+        counter.businessId === targetBusinessId &&
+        counter.assignedCategories &&
+        counter.assignedCategories.length > 0
+      ) {
+        if (!counter.assignedCategories.includes(t.categoryId)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    waitingTickets.sort((a, b) => {
+      if (a.categoryId === 'vip' && b.categoryId !== 'vip') return -1;
+      if (b.categoryId === 'vip' && a.categoryId !== 'vip') return 1;
+      return a.createdAt - b.createdAt;
+    });
+
+    const nextTicket = waitingTickets[0];
+
+    if (nextTicket && nextTicket.phoneNumber) {
+      alertNextCustomerInLine({
+        nextTicket,
+        servingTicket: activeServing,
+        counterName,
+        businessName: activeServing?.businessName || counter?.businessId,
+      }).then((res) => {
+        if (res && res.success) {
+          setLastSmsAlert({
+            ticketNumber: nextTicket.number,
+            customerName: nextTicket.customerName,
+            recipient: nextTicket.phoneNumber!,
+            success: true,
+            message: `Automated SMS sent to Ticket ${nextTicket.number} (${nextTicket.phoneNumber}) letting them know they are next in line!`,
+            timestamp: Date.now(),
+          });
+          setTickets((prev) =>
+            prev.map((t) => (t.id === nextTicket.id ? { ...t, nextAlertSent: true } : t))
+          );
+        } else if (res && !res.success) {
+          console.warn('[Vonage SMS] Could not auto-notify next ticket:', res.error);
+          setLastSmsAlert({
+            ticketNumber: nextTicket.number,
+            customerName: nextTicket.customerName,
+            recipient: nextTicket.phoneNumber!,
+            success: false,
+            message: res.error || 'Failed to dispatch SMS alert',
+            timestamp: Date.now(),
+          });
+        }
+      }).catch((err) => {
+        console.error('[Vonage SMS Error]:', err);
+      });
+    }
+  };
+
+  const sendManualSmsAlert = async (ticketId: string, customMessage?: string): Promise<boolean> => {
+    const target = tickets.find((t) => t.id === ticketId);
+    if (!target || !target.phoneNumber) return false;
+
+    const text =
+      customMessage ||
+      `Queue Alert: Hi ${target.customerName || 'Customer'}! Your Ticket ${target.number} is next in line. Please get ready to proceed to the counter.`;
+
+    const res = await sendSmsNotification(target.phoneNumber, text, {
+      customerName: target.customerName,
+      ticketNumber: target.number,
+    });
+
+    if (res.success) {
+      setLastSmsAlert({
+        ticketNumber: target.number,
+        customerName: target.customerName,
+        recipient: target.phoneNumber,
+        success: true,
+        message: `SMS dispatched to ${target.number} (${target.phoneNumber})`,
+        timestamp: Date.now(),
+      });
+      setTickets((prev) =>
+        prev.map((t) => (t.id === target.id ? { ...t, nextAlertSent: true } : t))
+      );
+      return true;
+    } else {
+      setLastSmsAlert({
+        ticketNumber: target.number,
+        customerName: target.customerName,
+        recipient: target.phoneNumber,
+        success: false,
+        message: res.error || 'Failed to send SMS',
+        timestamp: Date.now(),
+      });
+      return false;
+    }
   };
 
   const completeTicket = (counterId: number, ticketId?: string) => {
@@ -1170,6 +1307,8 @@ export const QueueProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteStaffMember,
         scanTicket,
         verifyTicket: scanTicket,
+        lastSmsAlert,
+        sendManualSmsAlert,
       }}
     >
       {children}

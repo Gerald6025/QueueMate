@@ -30,7 +30,9 @@ import {
   Building2,
   User,
   Layers,
-  ArrowRight
+  ArrowRight,
+  MessageSquare,
+  Smartphone
 } from 'lucide-react';
 
 interface StaffDashboardViewProps {
@@ -69,7 +71,9 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
     soundEnabled,
     setSoundEnabled,
     darkMode,
-    setDarkMode
+    setDarkMode,
+    lastSmsAlert,
+    sendManualSmsAlert,
   } = useQueue();
 
   // Resolve current active staff member identity (Priority: Explicit Props -> activeStaff in Context/Storage -> custom created staff in state -> default)
@@ -416,21 +420,27 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
       {/* Main Center Content Container */}
       <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6 flex-1 min-h-0 overflow-y-auto overscroll-contain">
-        {/* Quick Verify Notification Toast */}
-        {quickVerifyToast && (
+        {/* Automated Vonage SMS Notification Toast */}
+        {lastSmsAlert && (
           <div
-            className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center space-x-2 animate-scale-in shadow-sm ${
-              quickVerifyToast.success
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+            className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between shadow-sm animate-scale-in ${
+              lastSmsAlert.success
+                ? 'bg-sky-500/10 border-sky-500/30 text-sky-800 dark:text-sky-200'
+                : 'bg-amber-500/10 border-amber-500/30 text-amber-800 dark:text-amber-200'
             }`}
           >
-            {quickVerifyToast.success ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-            ) : (
-              <UserX className="w-4 h-4 text-rose-500 flex-shrink-0" />
-            )}
-            <span>{quickVerifyToast.message}</span>
+            <div className="flex items-center space-x-2.5">
+              <div className="w-6 h-6 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center flex-shrink-0">
+                <MessageSquare className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="font-bold">Vonage SMS Alert: </span>
+                <span>{lastSmsAlert.message}</span>
+              </div>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 font-bold ml-2 flex-shrink-0">
+              Vonage SMS Sent
+            </span>
           </div>
         )}
 
@@ -615,6 +625,40 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Next in Line Preview & Auto-SMS Status */}
+              {nextInLine && (
+                <div
+                  className={`mt-4 p-3 rounded-2xl border flex items-center justify-between text-xs ${
+                    darkMode ? 'bg-slate-900/60 border-slate-700/60' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <span className="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 font-black text-[10px] tracking-wide uppercase">
+                      Next in Line
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {nextInLine.number}
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">
+                      ({nextInLine.customerName || 'Customer'})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {nextInLine.phoneNumber ? (
+                      <span className={`flex items-center space-x-1.5 font-bold text-[11px] ${
+                        nextInLine.nextAlertSent ? 'text-emerald-500' : 'text-sky-500'
+                      }`}>
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>{nextInLine.nextAlertSent ? 'SMS Notified (Next)' : 'Auto-SMS on Serving'}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 italic text-[11px]">No phone attached</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons Bar */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
@@ -907,6 +951,21 @@ export const StaffDashboardView: React.FC<StaffDashboardViewProps> = ({
 
                   {/* Actions for this Ticket */}
                   <div className="flex items-center space-x-2">
+                    {t.phoneNumber && (
+                      <button
+                        onClick={() => sendManualSmsAlert(t.id)}
+                        className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+                          t.nextAlertSent
+                            ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                        title={t.nextAlertSent ? 'SMS alert already sent. Click to re-send.' : 'Send SMS alert'}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">{t.nextAlertSent ? 'SMS Sent' : 'Send SMS'}</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         // Scan/verify ticket

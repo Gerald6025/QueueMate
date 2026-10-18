@@ -13,7 +13,8 @@ import {
   RotateCcw,
   Sparkles,
   Users,
-  Ticket as TicketIcon
+  Ticket as TicketIcon,
+  MessageSquare
 } from 'lucide-react';
 import { QRScannerModal } from './QRScannerModal';
 
@@ -28,7 +29,8 @@ export const StaffCounter: React.FC = () => {
     completeTicket, 
     markNoShow,
     soundEnabled,
-    setSoundEnabled
+    setSoundEnabled,
+    lastSmsAlert,
   } = useQueue();
 
   const [selectedCounterId, setSelectedCounterId] = useState<number>(1);
@@ -153,6 +155,30 @@ export const StaffCounter: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Automated Vonage SMS Notification Toast */}
+      {lastSmsAlert && (
+        <div
+          className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between shadow-sm animate-scale-in ${
+            lastSmsAlert.success
+              ? 'bg-sky-500/10 border-sky-500/30 text-sky-200'
+              : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+          }`}
+        >
+          <div className="flex items-center space-x-2.5">
+            <div className="w-6 h-6 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <span className="font-bold">Vonage SMS Alert: </span>
+              <span>{lastSmsAlert.message}</span>
+            </div>
+          </div>
+          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-400 font-bold ml-2 flex-shrink-0">
+            Vonage SMS Sent
+          </span>
+        </div>
+      )}
 
       {/* Active Service Panel */}
       <div className="bg-slate-800/50 border border-slate-700/60 rounded-3xl p-6 relative overflow-hidden shadow-xl">
